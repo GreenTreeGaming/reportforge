@@ -11,6 +11,8 @@ import plotly.graph_objects as go
 import streamlit as st
 from textwrap import dedent
 
+from reportforge.advanced_analytics import build_advanced_analytics
+
 from reportforge.analysis import (
     build_summary_tables,
     calculate_metrics,
@@ -1711,6 +1713,11 @@ if generate:
                 clean_data
             )
 
+            advanced = build_advanced_analytics(
+                clean_data,
+                comparison_days=30,
+            )
+
             report_bytes = create_excel_report(
                 clean_data,
                 rejected_data,
@@ -1730,6 +1737,7 @@ if generate:
             "metrics": metrics,
             "summaries": summaries,
             "report_bytes": report_bytes,
+            "advanced": advanced,
         }
 
     except ReportForgeError as exc:
@@ -1791,6 +1799,20 @@ metrics = result[
 summaries = result[
     "summaries"
 ]
+
+advanced = result[
+    "advanced"
+]
+
+decision_queue = advanced["decision_queue"]
+revenue_bridge = advanced["revenue_bridge"]
+customer_movement = advanced["customer_movement"]
+rfm = advanced["rfm"]
+customer_cadence = advanced["customer_cadence"]
+cross_sell = advanced["cross_sell"]
+product_momentum = advanced["product_momentum"]
+resilience = advanced["resilience"]
+period_window = advanced["period_window"]
 
 report_bytes = result[
     "report_bytes"
@@ -1949,12 +1971,166 @@ render_highlights(
     )
 )
 
+with st.container(border=True):
+    section(
+        "04",
+        "Decision intelligence",
+        (
+            "Prioritized risks and opportunities with quantified "
+            "impact, confidence, evidence, and recommended actions."
+        ),
+    )
+
+    score_one, score_two, score_three, score_four = st.columns(4)
+
+    score_one.metric(
+        "Revenue resilience",
+        f"{resilience.score:.0f}/100",
+    )
+
+    score_two.metric(
+        "Confidence",
+        f"{resilience.confidence:.0%}",
+    )
+
+    score_three.metric(
+        "Effective customers",
+        f"{resilience.effective_customer_count:.1f}",
+    )
+
+    score_four.metric(
+        "Top-5 customer share",
+        f"{resilience.top_five_customer_share:.1%}",
+    )
+
+    st.markdown("### Priority findings")
+
+    if decision_queue.empty:
+        st.info(
+            "There is not enough data to generate prioritized findings."
+        )
+    else:
+        for row in decision_queue.head(5).itertuples(index=False):
+            impact = (
+                "Not quantified"
+                if pd.isna(row.impact_amount)
+                else money(row.impact_amount)
+            )
+
+            st.markdown(
+                f"#### {html.escape(str(row.title))}"
+            )
+
+            st.caption(
+                f"{str(row.priority).upper()} · "
+                f"{row.category} · "
+                f"Impact: {impact} · "
+                f"Confidence: {row.confidence:.0%}"
+            )
+
+            st.write(row.summary)
+
+            st.info(
+                f"Recommended action: {row.recommended_action}"
+            )
+
+            with st.expander("Evidence and calculation basis"):
+                st.write(row.evidence)
+
+    decision_tabs = st.tabs(
+        [
+            "Revenue bridge",
+            "Customer health",
+            "Purchase cadence",
+            "Cross-sell",
+            "Product momentum",
+            "Customer movement",
+        ]
+    )
+
+    with decision_tabs[0]:
+        if revenue_bridge.empty:
+            st.info("Revenue movement data is not available.")
+        else:
+            bridge_chart = go.Figure(
+                go.Waterfall(
+                    x=revenue_bridge["component"],
+                    y=revenue_bridge["value"],
+                    measure=[
+                        (
+                            "absolute"
+                            if kind == "total"
+                            else "relative"
+                        )
+                        for kind in revenue_bridge["kind"]
+                    ],
+                    connector={
+                        "line": {
+                            "color": "rgba(15,23,42,.25)"
+                        }
+                    },
+                )
+            )
+
+            bridge_chart.update_layout(
+                title=(
+                    "Revenue movement: "
+                    f"{period_window.previous_start:%b %d}–"
+                    f"{period_window.previous_end:%b %d} vs "
+                    f"{period_window.current_start:%b %d}–"
+                    f"{period_window.current_end:%b %d}"
+                )
+            )
+
+            st.plotly_chart(
+                style_chart(
+                    bridge_chart,
+                    show_legend=False,
+                ),
+                use_container_width=True,
+                config={"displayModeBar": False},
+            )
+
+    with decision_tabs[1]:
+        st.dataframe(
+            rfm,
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    with decision_tabs[2]:
+        st.dataframe(
+            customer_cadence,
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    with decision_tabs[3]:
+        st.dataframe(
+            cross_sell,
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    with decision_tabs[4]:
+        st.dataframe(
+            product_momentum,
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    with decision_tabs[5]:
+        st.dataframe(
+            customer_movement,
+            use_container_width=True,
+            hide_index=True,
+        )
 
 with st.container(
     border=True,
 ):
     section(
-        "04",
+        "05",
         "Performance drivers",
         (
             "Explore changes over time and "
@@ -2240,7 +2416,7 @@ if show_tables:
         border=True,
     ):
         section(
-            "05",
+            "06",
             "Detailed analysis",
             (
                 "Inspect monthly, product, customer, "
@@ -2346,7 +2522,7 @@ with st.container(
     border=True,
 ):
     section(
-        "06",
+        "07",
         "Export the report",
         (
             "Download a formatted workbook "
