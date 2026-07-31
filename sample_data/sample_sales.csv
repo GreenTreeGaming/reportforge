@@ -1,0 +1,9 @@
+date,customer,product,revenue,cost
+2026-01-04,Acme LLC,Window Cleaning,350,140
+2026-01-10,Smith Dental,Pressure Washing,450,190
+2026-02-02,Acme LLC,Gutter Cleaning,375,180
+2026-02-15,Northside Cafe,Window Cleaning,400,155
+2026-03-01,Smith Dental,Gutter Cleaning,150,65
+2026-03-12,Northside Cafe,Pressure Washing,950,410
+2026-04-03,Acme LLC,Window Cleaning,525,230
+2026-04-19,Northside Cafe,Gutter Cleaning,250,95
