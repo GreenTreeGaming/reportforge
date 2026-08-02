@@ -11,7 +11,9 @@ import {
 } from "react";
 
 import {
+    getReportAnalysis,
     getReportUpload,
+    saveReportAnalysis,
 } from "@/lib/reportforge/upload-storage";
 
 import type {
@@ -72,18 +74,13 @@ export default function ReviewPage() {
         async function analyze(): Promise<void> {
             try {
                 const existingResult =
-                    sessionStorage.getItem(
-                        `reportforge:${reportId}:analysis`,
+                    await getReportAnalysis(
+                        reportId,
                     );
 
                 if (existingResult) {
-                    const parsedResult =
-                        JSON.parse(
-                            existingResult,
-                        ) as AnalysisResult;
-
                     if (!cancelled) {
-                        setResult(parsedResult);
+                        setResult(existingResult);
                     }
 
                     return;
@@ -155,15 +152,13 @@ export default function ReviewPage() {
                 const analysis =
                     data as AnalysisResult;
 
+                await saveReportAnalysis(
+                    reportId,
+                    analysis,
+                );
+
                 if (!cancelled) {
                     setResult(analysis);
-
-                    sessionStorage.setItem(
-                        `reportforge:${reportId}:analysis`,
-                        JSON.stringify(
-                            analysis,
-                        ),
-                    );
                 }
             } catch (caughtError) {
                 if (!cancelled) {

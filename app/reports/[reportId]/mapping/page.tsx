@@ -177,11 +177,6 @@ export default function MappingPage() {
             return;
         }
 
-        sessionStorage.setItem(
-            `reportforge:${reportId}:mapping`,
-            JSON.stringify(mapping),
-        );
-
         router.push(
             `/reports/${encodeURIComponent(
                 reportId,

@@ -14,6 +14,9 @@ import {
 import type {
     AnalysisResult,
 } from "@/lib/reportforge/types";
+import {
+    getReportAnalysis,
+} from "@/lib/reportforge/upload-storage";
 
 function money(
     value: number | null,
@@ -76,26 +79,59 @@ export default function ReportOverviewPage() {
         useState<string | null>(null);
 
     useEffect(() => {
-        const raw = sessionStorage.getItem(
-            `reportforge:${reportId}:analysis`,
-        );
+        let cancelled = false;
 
-        if (!raw) {
-            setError(
-                "The completed analysis could not be found.",
-            );
-            return;
+        async function loadReport(): Promise<void> {
+            try {
+                const stored =
+                    await getReportAnalysis(
+                        reportId,
+                    );
+
+                if (!stored) {
+                    if (!cancelled) {
+                        setError(
+                            "The completed analysis could not be found. Upload and analyze the spreadsheet again.",
+                        );
+                    }
+
+                    return;
+                }
+
+                if (
+                    !stored.metrics ||
+                    !stored.cleaning ||
+                    !stored.summaries ||
+                    !stored.advanced
+                ) {
+                    if (!cancelled) {
+                        setError(
+                            "The saved report is incomplete. Upload the spreadsheet again to rebuild it.",
+                        );
+                    }
+
+                    return;
+                }
+
+                if (!cancelled) {
+                    setResult(stored);
+                }
+            } catch (caughtError) {
+                if (!cancelled) {
+                    setError(
+                        caughtError instanceof Error
+                            ? caughtError.message
+                            : "The stored report could not be opened.",
+                    );
+                }
+            }
         }
 
-        try {
-            setResult(
-                JSON.parse(raw) as AnalysisResult,
-            );
-        } catch {
-            setError(
-                "The stored report is invalid.",
-            );
-        }
+        void loadReport();
+
+        return () => {
+            cancelled = true;
+        };
     }, [reportId]);
 
     const strongestMonth = useMemo(() => {
@@ -165,7 +201,40 @@ export default function ReportOverviewPage() {
         metrics,
         cleaning,
         summaries,
+        advanced,
     } = result;
+
+    if (!advanced) {
+        return (
+            <main className="min-h-screen bg-[#f6f6f2] px-5 py-16 text-[#191918]">
+                <div className="mx-auto max-w-xl rounded-2xl border border-black/10 bg-white p-7">
+                    <h1 className="text-2xl font-semibold">
+                        Report needs to be rebuilt
+                    </h1>
+
+                    <p className="mt-3 text-sm leading-6 text-[#696965]">
+                        This report was created before advanced
+                        analytics were added. Upload the spreadsheet
+                        again to generate the updated report.
+                    </p>
+
+                    <Link
+                        href="/"
+                        className="mt-6 inline-flex rounded-xl bg-[#191918] px-4 py-2.5 text-sm font-semibold text-white"
+                    >
+                        Upload spreadsheet again
+                    </Link>
+                </div>
+            </main>
+        );
+    }
+
+    const {
+        productMomentum,
+        customerMovement,
+        rfm,
+        decisions,
+    } = advanced;
 
     const topProducts =
         summaries.products.slice(0, 10);
@@ -456,6 +525,267 @@ export default function ReportOverviewPage() {
                         </p>
                     </section>
                 ) : null}
+
+                <section className="mt-8 grid gap-6 lg:grid-cols-2">
+                    <ReportCard
+                        title="Customer movement"
+                        description={
+                            customerMovement.window
+                                ? `${customerMovement.window.windowDays}-day comparison against the preceding matching period.`
+                                : "Not enough dated customer activity for a comparison."
+                        }
+                    >
+                        <InsightRow
+                            label="New revenue"
+                            value={money(
+                                customerMovement
+                                    .totals.newRevenue,
+                            )}
+                        />
+
+                        <InsightRow
+                            label="Expansion revenue"
+                            value={money(
+                                customerMovement
+                                    .totals.expansionRevenue,
+                            )}
+                        />
+
+                        <InsightRow
+                            label="Returning revenue"
+                            value={money(
+                                customerMovement
+                                    .totals.returningRevenue,
+                            )}
+                        />
+
+                        <InsightRow
+                            label="Contraction"
+                            value={money(
+                                customerMovement
+                                    .totals.contractionRevenue,
+                            )}
+                        />
+
+                        <InsightRow
+                            label="Lost revenue"
+                            value={money(
+                                customerMovement
+                                    .totals.lostRevenue,
+                            )}
+                        />
+                    </ReportCard>
+
+                    <ReportCard
+                        title="Product momentum"
+                        description={
+                            productMomentum.window
+                                ? `${productMomentum.window.windowDays}-day product comparison.`
+                                : "Not enough product history for a comparison."
+                        }
+                    >
+                        <InsightRow
+                            label="Growing products"
+                            value={productMomentum.fastestGrowing.length.toLocaleString()}
+                        />
+
+                        <InsightRow
+                            label="Declining products"
+                            value={productMomentum.fastestDeclining.length.toLocaleString()}
+                        />
+
+                        <InsightRow
+                            label="Newly active products"
+                            value={productMomentum.newlyActive.length.toLocaleString()}
+                        />
+
+                        <InsightRow
+                            label="Inactive products"
+                            value={productMomentum.becameInactive.length.toLocaleString()}
+                        />
+                    </ReportCard>
+                </section>
+
+                <section className="mt-8 grid gap-6 lg:grid-cols-2">
+                    <RankingTable
+                        title="Fastest-growing products"
+                        heading="Product"
+                        rows={productMomentum.fastestGrowing
+                            .slice(0, 10)
+                            .map((product) => ({
+                                label:
+                                product.product,
+                                value: money(
+                                    product.revenueChange,
+                                ),
+                                detail:
+                                    `${money(
+                                        product.currentRevenue,
+                                    )} current revenue`,
+                            }))}
+                    />
+
+                    <RankingTable
+                        title="Largest customer losses"
+                        heading="Customer"
+                        rows={customerMovement.lostCustomers
+                            .slice(0, 10)
+                            .map((customer) => ({
+                                label:
+                                customer.customer,
+                                value: money(
+                                    customer.previousRevenue,
+                                ),
+                                detail:
+                                    `${customer.previousOrders.toLocaleString()} prior orders`,
+                            }))}
+                    />
+                </section>
+
+                <section className="mt-8">
+                    <ReportCard
+                        title="RFM customer segments"
+                        description="Customers grouped by recency, frequency, and monetary value."
+                    >
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full text-left text-sm">
+                                <thead>
+                                <tr className="border-b border-black/10 text-xs text-[#777772]">
+                                    <th className="pb-3 font-medium">
+                                        Segment
+                                    </th>
+
+                                    <th className="pb-3 text-right font-medium">
+                                        Customers
+                                    </th>
+
+                                    <th className="pb-3 text-right font-medium">
+                                        Revenue
+                                    </th>
+
+                                    <th className="pb-3 text-right font-medium">
+                                        Average
+                                    </th>
+                                </tr>
+                                </thead>
+
+                                <tbody>
+                                {rfm.segments.map(
+                                    (segment) => (
+                                        <tr
+                                            key={
+                                                segment.segment
+                                            }
+                                            className="border-b border-black/6 last:border-0"
+                                        >
+                                            <td className="py-3 font-medium capitalize">
+                                                {segment.segment.replaceAll(
+                                                    "_",
+                                                    " ",
+                                                )}
+                                            </td>
+
+                                            <td className="py-3 text-right">
+                                                {segment.customers.toLocaleString()}
+                                            </td>
+
+                                            <td className="py-3 text-right">
+                                                {money(
+                                                    segment.revenue,
+                                                )}
+                                            </td>
+
+                                            <td className="py-3 text-right">
+                                                {money(
+                                                    segment.averageRevenue,
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ),
+                                )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </ReportCard>
+                </section>
+
+                <section className="mt-8">
+                    <ReportCard
+                        title="Decision queue"
+                        description="Prioritized actions generated from the strongest evidence in this report."
+                    >
+                        <div className="space-y-3">
+                            {decisions.length === 0 ? (
+                                <p className="text-sm text-[#777772]">
+                                    No major actions were detected.
+                                </p>
+                            ) : (
+                                decisions.map(
+                                    (decision) => (
+                                        <article
+                                            key={
+                                                decision.id
+                                            }
+                                            className="rounded-xl border border-black/10 p-4"
+                                        >
+                                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="rounded-full bg-[#191918] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-white">
+                                    {
+                                        decision.priority
+                                    }
+                                </span>
+
+                                                <span className="text-xs capitalize text-[#777772]">
+                                    {
+                                        decision.category
+                                    }
+                                </span>
+                                            </div>
+
+                                            <h3 className="mt-3 text-base font-semibold">
+                                                {
+                                                    decision.title
+                                                }
+                                            </h3>
+
+                                            <p className="mt-2 text-sm leading-6 text-[#696965]">
+                                                {
+                                                    decision.summary
+                                                }
+                                            </p>
+
+                                            <p className="mt-3 text-sm font-medium">
+                                                {
+                                                    decision.recommendation
+                                                }
+                                            </p>
+
+                                            <div className="mt-3 space-y-1">
+                                                {decision.evidence.map(
+                                                    (
+                                                        evidence,
+                                                    ) => (
+                                                        <p
+                                                            key={
+                                                                evidence
+                                                            }
+                                                            className="text-xs text-[#777772]"
+                                                        >
+                                                            •{" "}
+                                                            {
+                                                                evidence
+                                                            }
+                                                        </p>
+                                                    ),
+                                                )}
+                                            </div>
+                                        </article>
+                                    ),
+                                )
+                            )}
+                        </div>
+                    </ReportCard>
+                </section>
             </main>
         </div>
     );

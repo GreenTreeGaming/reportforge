@@ -1,39 +1,69 @@
-import { NextResponse } from "next/server";
+import {
+    NextResponse,
+} from "next/server";
 
 import {
     cleanSalesRows,
 } from "@/lib/reportforge/cleaning";
+
+import {
+    calculateCustomerMovement,
+    calculateRfm,
+} from "@/lib/reportforge/customers";
+
+import {
+    buildDecisionQueue,
+} from "@/lib/reportforge/insights";
+
 import {
     calculateMetrics,
 } from "@/lib/reportforge/metrics";
+
 import {
     parseSpreadsheet,
 } from "@/lib/reportforge/parsing";
-import type {
-    ApiErrorResponse,
-    ColumnMapping,
-} from "@/lib/reportforge/types";
+
+import {
+    calculateProductMomentum,
+} from "@/lib/reportforge/products";
+
 import {
     buildReportSummaries,
 } from "@/lib/reportforge/summaries";
 
+import type {
+    AnalysisResult,
+    ApiErrorResponse,
+    ColumnMapping,
+    NumericFieldMapping,
+} from "@/lib/reportforge/types";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type AnalyzeResponse = {
-    metrics: ReturnType<
-        typeof calculateMetrics
-    >;
-    cleaning: ReturnType<
-        typeof cleanSalesRows
-    >["summary"];
-    rejectedRows: ReturnType<
-        typeof cleanSalesRows
-    >["rejectedRows"];
-    preview: ReturnType<
-        typeof cleanSalesRows
-    >["rows"];
-};
+function isNumericMappingValid(
+    mapping: NumericFieldMapping,
+    required: boolean,
+): boolean {
+    if (mapping.mode === "column") {
+        return Boolean(
+            mapping.column,
+        );
+    }
+
+    if (
+        mapping.mode === "multiply"
+    ) {
+        return Boolean(
+            mapping.leftColumn &&
+            mapping.rightColumn &&
+            mapping.leftColumn !==
+            mapping.rightColumn,
+        );
+    }
+
+    return !required;
+}
 
 function parseMapping(
     raw: FormDataEntryValue | null,
@@ -44,29 +74,79 @@ function parseMapping(
         );
     }
 
-    const parsed = JSON.parse(
-        raw,
-    ) as ColumnMapping;
+    let parsed: ColumnMapping;
+
+    try {
+        parsed = JSON.parse(
+            raw,
+        ) as ColumnMapping;
+    } catch {
+        throw new Error(
+            "The column mapping is not valid JSON.",
+        );
+    }
 
     if (
         !parsed.date ||
-        !parsed.customer ||
         !parsed.product ||
         !parsed.revenue
     ) {
         throw new Error(
-            "The column mapping is incomplete.",
+            "Date, product, and revenue mappings are required.",
         );
     }
 
-    return parsed;
+    if (
+        !isNumericMappingValid(
+            parsed.revenue,
+            true,
+        )
+    ) {
+        throw new Error(
+            "The revenue mapping is incomplete.",
+        );
+    }
+
+    if (
+        !isNumericMappingValid(
+            parsed.cost,
+            false,
+        )
+    ) {
+        throw new Error(
+            "The cost mapping is incomplete.",
+        );
+    }
+
+    return {
+        date: parsed.date,
+        product: parsed.product,
+
+        customer:
+            parsed.customer || null,
+
+        orderId:
+            parsed.orderId || null,
+
+        region:
+            parsed.region || null,
+
+        revenue:
+        parsed.revenue,
+
+        cost:
+            parsed.cost ?? {
+                mode: "none",
+            },
+    };
 }
 
 export async function POST(
     request: Request,
 ): Promise<
     NextResponse<
-        AnalyzeResponse | ApiErrorResponse
+        AnalysisResult |
+        ApiErrorResponse
     >
 > {
     try {
@@ -88,12 +168,17 @@ export async function POST(
             );
         }
 
-        const mapping = parseMapping(
-            formData.get("mapping"),
-        );
+        const mapping =
+            parseMapping(
+                formData.get(
+                    "mapping",
+                ),
+            );
 
         const parsed =
-            await parseSpreadsheet(file);
+            await parseSpreadsheet(
+                file,
+            );
 
         const cleaning =
             cleanSalesRows(
@@ -101,7 +186,9 @@ export async function POST(
                 mapping,
             );
 
-        if (cleaning.rows.length === 0) {
+        if (
+            cleaning.rows.length === 0
+        ) {
             return NextResponse.json(
                 {
                     message:
@@ -123,21 +210,69 @@ export async function POST(
                 cleaning.rows,
             );
 
-        return NextResponse.json({
+        const productMomentum =
+            calculateProductMomentum(
+                cleaning.rows,
+            );
+
+        const customerMovement =
+            calculateCustomerMovement(
+                cleaning.rows,
+            );
+
+        const rfm =
+            calculateRfm(
+                cleaning.rows,
+            );
+
+        const decisions =
+            buildDecisionQueue({
+                metrics,
+                cleaning:
+                cleaning.summary,
+                productMomentum,
+                customerMovement,
+                rfm,
+            });
+
+        const response:
+            AnalysisResult = {
             metrics,
-            cleaning: cleaning.summary,
+            cleaning:
+            cleaning.summary,
             summaries,
+
+            advanced: {
+                productMomentum,
+                customerMovement,
+                rfm,
+                decisions,
+            },
+
             rejectedRows:
-                cleaning.rejectedRows.slice(
-                    0,
-                    100,
-                ),
+                cleaning.rejectedRows
+                    .slice(0, 100)
+                    .map(
+                        (row) => ({
+                            sourceRow:
+                            row.sourceRow,
+                            reason:
+                            row.reason,
+                            message:
+                            row.message,
+                        }),
+                    ),
+
             preview:
                 cleaning.rows.slice(
                     0,
                     100,
                 ),
-        });
+        };
+
+        return NextResponse.json(
+            response,
+        );
     } catch (error) {
         console.error(
             "Report analysis failed:",

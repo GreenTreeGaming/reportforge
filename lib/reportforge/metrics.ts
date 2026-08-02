@@ -74,9 +74,18 @@ function largestShare(
         return 0;
     }
 
-    const largest = Math.max(
-        ...totals.values(),
-    );
+    let largest =
+        -Infinity;
+
+    for (const value of totals.values()) {
+        if (value > largest) {
+            largest = value;
+        }
+    }
+
+    if (largest === -Infinity) {
+        return 0;
+    }
 
     return largest / denominator;
 }
