@@ -1,8 +1,4 @@
 import {
-    NextResponse,
-} from "next/server";
-
-import {
     cleanSalesRows,
 } from "@/lib/reportforge/cleaning";
 
@@ -33,7 +29,6 @@ import {
 
 import type {
     AnalysisResult,
-    ApiErrorResponse,
     ColumnMapping,
     NumericFieldMapping,
 } from "@/lib/reportforge/types";
@@ -41,10 +36,39 @@ import type {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+type ProgressEvent = {
+    type: "progress";
+    progress: number;
+    stage: string;
+    detail: string;
+};
+
+type CompleteEvent = {
+    type: "complete";
+    result: AnalysisResult;
+};
+
+type ErrorEvent = {
+    type: "error";
+    message: string;
+};
+
+type StreamEvent =
+    | ProgressEvent
+    | CompleteEvent
+    | ErrorEvent;
+
 function isNumericMappingValid(
-    mapping: NumericFieldMapping,
+    mapping:
+        | NumericFieldMapping
+        | null
+        | undefined,
     required: boolean,
 ): boolean {
+    if (!mapping) {
+        return !required;
+    }
+
     if (mapping.mode === "column") {
         return Boolean(
             mapping.column,
@@ -88,11 +112,10 @@ function parseMapping(
 
     if (
         !parsed.date ||
-        !parsed.product ||
-        !parsed.revenue
+        !parsed.product
     ) {
         throw new Error(
-            "Date, product, and revenue mappings are required.",
+            "Date and product mappings are required.",
         );
     }
 
@@ -141,154 +164,447 @@ function parseMapping(
     };
 }
 
+function nextFrame(): Promise<void> {
+    return new Promise(
+        (resolve) => {
+            setTimeout(
+                resolve,
+                0,
+            );
+        },
+    );
+}
+
 export async function POST(
     request: Request,
-): Promise<
-    NextResponse<
-        AnalysisResult |
-        ApiErrorResponse
-    >
-> {
-    try {
-        const formData =
-            await request.formData();
+): Promise<Response> {
+    const encoder =
+        new TextEncoder();
 
-        const file =
-            formData.get("file");
+    const stream =
+        new ReadableStream<Uint8Array>({
+            async start(controller) {
+                let closed = false;
 
-        if (!(file instanceof File)) {
-            return NextResponse.json(
-                {
-                    message:
-                        "A spreadsheet file is required.",
-                },
-                {
-                    status: 400,
-                },
-            );
-        }
+                function send(
+                    event: StreamEvent,
+                ): void {
+                    if (closed) {
+                        return;
+                    }
 
-        const mapping =
-            parseMapping(
-                formData.get(
-                    "mapping",
-                ),
-            );
+                    controller.enqueue(
+                        encoder.encode(
+                            `${JSON.stringify(
+                                event,
+                            )}\n`,
+                        ),
+                    );
+                }
 
-        const parsed =
-            await parseSpreadsheet(
-                file,
-            );
+                async function progress(
+                    percentage: number,
+                    stage: string,
+                    detail: string,
+                ): Promise<void> {
+                    send({
+                        type: "progress",
+                        progress:
+                        percentage,
+                        stage,
+                        detail,
+                    });
 
-        const cleaning =
-            cleanSalesRows(
-                parsed.rows,
-                mapping,
-            );
+                    /*
+                     * Give Node a chance to flush
+                     * the progress event before the
+                     * next CPU-heavy stage starts.
+                     */
+                    await nextFrame();
+                }
 
-        if (
-            cleaning.rows.length === 0
-        ) {
-            return NextResponse.json(
-                {
-                    message:
-                        "No usable sales rows remained after cleaning.",
-                },
-                {
-                    status: 422,
-                },
-            );
-        }
+                try {
+                    await progress(
+                        3,
+                        "Receiving upload",
+                        "Reading the uploaded spreadsheet and field mapping.",
+                    );
 
-        const metrics =
-            calculateMetrics(
-                cleaning.rows,
-            );
+                    const formData =
+                        await request.formData();
 
-        const summaries =
-            buildReportSummaries(
-                cleaning.rows,
-            );
+                    const file =
+                        formData.get(
+                            "file",
+                        );
 
-        const productMomentum =
-            calculateProductMomentum(
-                cleaning.rows,
-            );
+                    if (
+                        !(
+                            file instanceof
+                            File
+                        )
+                    ) {
+                        throw new Error(
+                            "A spreadsheet file is required.",
+                        );
+                    }
 
-        const customerMovement =
-            calculateCustomerMovement(
-                cleaning.rows,
-            );
+                    const mapping =
+                        parseMapping(
+                            formData.get(
+                                "mapping",
+                            ),
+                        );
 
-        const rfm =
-            calculateRfm(
-                cleaning.rows,
-            );
+                    await progress(
+                        10,
+                        "Opening spreadsheet",
+                        `Opening ${file.name}.`,
+                    );
 
-        const decisions =
-            buildDecisionQueue({
-                metrics,
-                cleaning:
-                cleaning.summary,
-                productMomentum,
-                customerMovement,
-                rfm,
-            });
+                    const parsed =
+                        await parseSpreadsheet(
+                            file,
+                        );
 
-        const response:
-            AnalysisResult = {
-            metrics,
-            cleaning:
-            cleaning.summary,
-            summaries,
+                    await progress(
+                        25,
+                        "Spreadsheet parsed",
+                        `${parsed.rows.length.toLocaleString()} source rows and ${parsed.columns.length.toLocaleString()} columns were found.`,
+                    );
 
-            advanced: {
-                productMomentum,
-                customerMovement,
-                rfm,
-                decisions,
+                    await progress(
+                        30,
+                        "Cleaning rows",
+                        "Validating dates, products, revenue, customers, orders, and returns.",
+                    );
+
+                    const cleaning =
+                        cleanSalesRows(
+                            parsed.rows,
+                            mapping,
+                        );
+
+                    if (
+                        cleaning.rows
+                            .length === 0
+                    ) {
+                        throw new Error(
+                            "No usable sales rows remained after cleaning.",
+                        );
+                    }
+
+                    await progress(
+                        46,
+                        "Rows cleaned",
+                        `${cleaning.summary.acceptedRows.toLocaleString()} rows accepted and ${cleaning.summary.rejectedRows.toLocaleString()} excluded.`,
+                    );
+
+                    await progress(
+                        50,
+                        "Calculating core metrics",
+                        "Calculating revenue, orders, averages, customer coverage, concentration, and anomalies.",
+                    );
+
+                    const metrics =
+                        calculateMetrics(
+                            cleaning.rows,
+                        );
+
+                    await progress(
+                        59,
+                        "Building summaries",
+                        "Grouping performance by month, product, customer, and region.",
+                    );
+
+                    const summaries =
+                        buildReportSummaries(
+                            cleaning.rows,
+                        );
+
+                    await progress(
+                        68,
+                        "Analyzing product momentum",
+                        "Comparing recent product performance with the preceding matching period.",
+                    );
+
+                    const productMomentum =
+                        calculateProductMomentum(
+                            cleaning.rows,
+                        );
+
+                    await progress(
+                        77,
+                        "Analyzing customer movement",
+                        "Classifying new, retained, expanded, contracted, returning, and lost customers.",
+                    );
+
+                    const customerMovement =
+                        calculateCustomerMovement(
+                            cleaning.rows,
+                        );
+
+                    await progress(
+                        85,
+                        "Segmenting customers",
+                        "Calculating recency, frequency, monetary scores, and customer segments.",
+                    );
+
+                    const rfm =
+                        calculateRfm(
+                            cleaning.rows,
+                        );
+
+                    await progress(
+                        92,
+                        "Building decision queue",
+                        "Turning the strongest findings into prioritized business actions.",
+                    );
+
+                    const decisions =
+                        buildDecisionQueue({
+                            metrics,
+                            cleaning:
+                            cleaning.summary,
+                            productMomentum,
+                            customerMovement,
+                            rfm,
+                        });
+
+                    await progress(
+                        96,
+                        "Preparing report",
+                        "Reducing large result sets and preparing the completed report.",
+                    );
+
+                    const compactProductMomentum =
+                        {
+                            ...productMomentum,
+
+                            products: [
+                                ...productMomentum.products,
+                            ]
+                                .sort(
+                                    (
+                                        left,
+                                        right,
+                                    ) =>
+                                        Math.abs(
+                                            right.revenueChange,
+                                        ) -
+                                        Math.abs(
+                                            left.revenueChange,
+                                        ),
+                                )
+                                .slice(
+                                    0,
+                                    500,
+                                ),
+
+                            fastestGrowing:
+                                productMomentum.fastestGrowing.slice(
+                                    0,
+                                    25,
+                                ),
+
+                            fastestDeclining:
+                                productMomentum.fastestDeclining.slice(
+                                    0,
+                                    25,
+                                ),
+
+                            newlyActive:
+                                productMomentum.newlyActive.slice(
+                                    0,
+                                    25,
+                                ),
+
+                            becameInactive:
+                                productMomentum.becameInactive.slice(
+                                    0,
+                                    25,
+                                ),
+                        };
+
+                    const compactCustomerMovement =
+                        {
+                            ...customerMovement,
+
+                            customers: [
+                                ...customerMovement.customers,
+                            ]
+                                .sort(
+                                    (
+                                        left,
+                                        right,
+                                    ) =>
+                                        Math.abs(
+                                            right.revenueChange,
+                                        ) -
+                                        Math.abs(
+                                            left.revenueChange,
+                                        ),
+                                )
+                                .slice(
+                                    0,
+                                    500,
+                                ),
+
+                            newCustomers:
+                                customerMovement.newCustomers.slice(
+                                    0,
+                                    25,
+                                ),
+
+                            expandedCustomers:
+                                customerMovement.expandedCustomers.slice(
+                                    0,
+                                    25,
+                                ),
+
+                            contractedCustomers:
+                                customerMovement.contractedCustomers.slice(
+                                    0,
+                                    25,
+                                ),
+
+                            returningCustomers:
+                                customerMovement.returningCustomers.slice(
+                                    0,
+                                    25,
+                                ),
+
+                            lostCustomers:
+                                customerMovement.lostCustomers.slice(
+                                    0,
+                                    25,
+                                ),
+                        };
+
+                    const compactRfm = {
+                        ...rfm,
+
+                        customers: [
+                            ...rfm.customers,
+                        ]
+                            .sort(
+                                (
+                                    left,
+                                    right,
+                                ) =>
+                                    right.monetary -
+                                    left.monetary,
+                            )
+                            .slice(
+                                0,
+                                500,
+                            ),
+                    };
+
+                    const result:
+                        AnalysisResult = {
+                        metrics,
+
+                        cleaning:
+                        cleaning.summary,
+
+                        summaries,
+
+                        advanced: {
+                            productMomentum:
+                            compactProductMomentum,
+
+                            customerMovement:
+                            compactCustomerMovement,
+
+                            rfm:
+                            compactRfm,
+
+                            decisions:
+                                decisions.slice(
+                                    0,
+                                    20,
+                                ),
+                        },
+
+                        rejectedRows:
+                            cleaning.rejectedRows
+                                .slice(
+                                    0,
+                                    100,
+                                )
+                                .map(
+                                    (
+                                        row,
+                                    ) => ({
+                                        sourceRow:
+                                        row.sourceRow,
+
+                                        reason:
+                                        row.reason,
+
+                                        message:
+                                        row.message,
+                                    }),
+                                ),
+
+                        preview:
+                            cleaning.rows.slice(
+                                0,
+                                100,
+                            ),
+                    };
+
+                    await progress(
+                        99,
+                        "Saving report",
+                        "Sending the completed analysis to your browser.",
+                    );
+
+                    send({
+                        type: "complete",
+                        result,
+                    });
+
+                    closed = true;
+                    controller.close();
+                } catch (error) {
+                    console.error(
+                        "Report analysis failed:",
+                        error,
+                    );
+
+                    send({
+                        type: "error",
+                        message:
+                            error instanceof
+                            Error
+                                ? error.message
+                                : "The report could not be analyzed.",
+                    });
+
+                    closed = true;
+                    controller.close();
+                }
             },
+        });
 
-            rejectedRows:
-                cleaning.rejectedRows
-                    .slice(0, 100)
-                    .map(
-                        (row) => ({
-                            sourceRow:
-                            row.sourceRow,
-                            reason:
-                            row.reason,
-                            message:
-                            row.message,
-                        }),
-                    ),
+    return new Response(
+        stream,
+        {
+            headers: {
+                "Content-Type":
+                    "application/x-ndjson; charset=utf-8",
 
-            preview:
-                cleaning.rows.slice(
-                    0,
-                    100,
-                ),
-        };
+                "Cache-Control":
+                    "no-cache, no-store, must-revalidate",
 
-        return NextResponse.json(
-            response,
-        );
-    } catch (error) {
-        console.error(
-            "Report analysis failed:",
-            error,
-        );
+                Connection:
+                    "keep-alive",
 
-        return NextResponse.json(
-            {
-                message:
-                    error instanceof Error
-                        ? error.message
-                        : "The report could not be analyzed.",
+                "X-Content-Type-Options":
+                    "nosniff",
             },
-            {
-                status: 422,
-            },
-        );
-    }
+        },
+    );
 }

@@ -7,6 +7,7 @@ import {
 } from "next/navigation";
 import {
     useEffect,
+    useRef,
     useState,
 } from "react";
 
@@ -20,6 +21,28 @@ import type {
     AnalysisResult,
     ColumnMapping,
 } from "@/lib/reportforge/types";
+
+type AnalysisProgressEvent = {
+    type: "progress";
+    progress: number;
+    stage: string;
+    detail: string;
+};
+
+type AnalysisCompleteEvent = {
+    type: "complete";
+    result: AnalysisResult;
+};
+
+type AnalysisErrorEvent = {
+    type: "error";
+    message: string;
+};
+
+type AnalysisStreamEvent =
+    | AnalysisProgressEvent
+    | AnalysisCompleteEvent
+    | AnalysisErrorEvent;
 
 function money(
     value: number | null,
@@ -62,6 +85,22 @@ export default function ReviewPage() {
     const router = useRouter();
     const reportId = params.reportId;
 
+    const analysisStarted =
+        useRef(false);
+
+    const [progress, setProgress] =
+        useState(0);
+
+    const [progressStage, setProgressStage] =
+        useState(
+            "Preparing analysis",
+        );
+
+    const [progressDetail, setProgressDetail] =
+        useState(
+            "Getting the uploaded spreadsheet ready.",
+        );
+
     const [result, setResult] =
         useState<AnalysisResult | null>(null);
 
@@ -69,22 +108,55 @@ export default function ReviewPage() {
         useState<string | null>(null);
 
     useEffect(() => {
+        if (analysisStarted.current) {
+            return;
+        }
+
+        analysisStarted.current = true;
+
         let cancelled = false;
 
         async function analyze(): Promise<void> {
             try {
+                setProgress(2);
+                setProgressStage(
+                    "Checking saved report",
+                );
+                setProgressDetail(
+                    "Looking for a previously completed analysis.",
+                );
+
                 const existingResult =
                     await getReportAnalysis(
                         reportId,
                     );
 
-                if (existingResult) {
+                if (
+                    existingResult?.advanced
+                ) {
                     if (!cancelled) {
-                        setResult(existingResult);
+                        setProgress(100);
+                        setProgressStage(
+                            "Report ready",
+                        );
+                        setProgressDetail(
+                            "The saved report was loaded successfully.",
+                        );
+                        setResult(
+                            existingResult,
+                        );
                     }
 
                     return;
                 }
+
+                setProgress(4);
+                setProgressStage(
+                    "Loading spreadsheet",
+                );
+                setProgressDetail(
+                    "Reading the uploaded file from browser storage.",
+                );
 
                 const file =
                     await getReportUpload(
@@ -113,7 +185,8 @@ export default function ReviewPage() {
                         rawMapping,
                     ) as ColumnMapping;
 
-                const body = new FormData();
+                const body =
+                    new FormData();
 
                 body.append(
                     "file",
@@ -123,7 +196,17 @@ export default function ReviewPage() {
 
                 body.append(
                     "mapping",
-                    JSON.stringify(mapping),
+                    JSON.stringify(
+                        mapping,
+                    ),
+                );
+
+                setProgress(6);
+                setProgressStage(
+                    "Uploading for analysis",
+                );
+                setProgressDetail(
+                    `${file.name} is being sent to the analysis engine.`,
                 );
 
                 const response =
@@ -135,35 +218,178 @@ export default function ReviewPage() {
                         },
                     );
 
-                const data =
-                    (await response.json()) as
-                        | AnalysisResult
-                        | {
-                        message?: string;
-                    };
-
-                if (!response.ok) {
+                if (!response.body) {
                     throw new Error(
-                        data.message ??
-                        "The report could not be analyzed.",
+                        "The analysis stream could not be opened.",
                     );
                 }
 
-                const analysis =
-                    data as AnalysisResult;
+                const reader =
+                    response.body.getReader();
+
+                const decoder =
+                    new TextDecoder();
+
+                let buffer = "";
+                let completedResult:
+                    AnalysisResult | null =
+                    null;
+
+                while (true) {
+                    const {
+                        value,
+                        done,
+                    } =
+                        await reader.read();
+
+                    if (done) {
+                        break;
+                    }
+
+                    buffer +=
+                        decoder.decode(
+                            value,
+                            {
+                                stream: true,
+                            },
+                        );
+
+                    const lines =
+                        buffer.split("\n");
+
+                    buffer =
+                        lines.pop() ?? "";
+
+                    for (const line of lines) {
+                        const trimmed =
+                            line.trim();
+
+                        if (!trimmed) {
+                            continue;
+                        }
+
+                        let event:
+                            AnalysisStreamEvent;
+
+                        try {
+                            event =
+                                JSON.parse(
+                                    trimmed,
+                                ) as AnalysisStreamEvent;
+                        } catch {
+                            continue;
+                        }
+
+                        if (
+                            event.type ===
+                            "progress"
+                        ) {
+                            if (!cancelled) {
+                                setProgress(
+                                    event.progress,
+                                );
+
+                                setProgressStage(
+                                    event.stage,
+                                );
+
+                                setProgressDetail(
+                                    event.detail,
+                                );
+                            }
+
+                            continue;
+                        }
+
+                        if (
+                            event.type ===
+                            "error"
+                        ) {
+                            throw new Error(
+                                event.message,
+                            );
+                        }
+
+                        if (
+                            event.type ===
+                            "complete"
+                        ) {
+                            completedResult =
+                                event.result;
+                        }
+                    }
+                }
+
+                /*
+                 * Handle a final NDJSON line that
+                 * may not end with a newline.
+                 */
+                const remaining =
+                    buffer.trim();
+
+                if (remaining) {
+                    const event =
+                        JSON.parse(
+                            remaining,
+                        ) as AnalysisStreamEvent;
+
+                    if (
+                        event.type ===
+                        "error"
+                    ) {
+                        throw new Error(
+                            event.message,
+                        );
+                    }
+
+                    if (
+                        event.type ===
+                        "complete"
+                    ) {
+                        completedResult =
+                            event.result;
+                    }
+                }
+
+                if (!completedResult) {
+                    throw new Error(
+                        "The analysis ended before a completed report was returned.",
+                    );
+                }
+
+                if (!cancelled) {
+                    setProgress(99);
+                    setProgressStage(
+                        "Saving report",
+                    );
+                    setProgressDetail(
+                        "Saving the completed report in your browser.",
+                    );
+                }
 
                 await saveReportAnalysis(
                     reportId,
-                    analysis,
+                    completedResult,
                 );
 
                 if (!cancelled) {
-                    setResult(analysis);
+                    setProgress(100);
+                    setProgressStage(
+                        "Report ready",
+                    );
+                    setProgressDetail(
+                        "The analysis finished successfully.",
+                    );
+
+                    setResult(
+                        completedResult,
+                    );
                 }
             } catch (caughtError) {
                 if (!cancelled) {
                     setError(
-                        caughtError instanceof Error
+                        caughtError instanceof
+                        Error
                             ? caughtError.message
                             : "An unexpected error occurred.",
                     );
@@ -203,15 +429,111 @@ export default function ReviewPage() {
 
     if (!result) {
         return (
-            <main className="grid min-h-screen place-items-center bg-[#f6f6f2] text-[#191918]">
-                <div className="text-center">
-                    <div className="mx-auto size-7 animate-spin rounded-full border-2 border-black/15 border-t-[#191918]" />
+            <main className="grid min-h-screen place-items-center bg-[#f6f6f2] px-5 text-[#191918]">
+                <section className="w-full max-w-xl rounded-3xl border border-black/10 bg-white p-6 shadow-[0_20px_70px_rgba(0,0,0,0.06)] sm:p-8">
+                    <div className="flex items-start justify-between gap-5">
+                        <div>
+                            <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#2457e6]">
+                                Building report
+                            </p>
 
-                    <p className="mt-4 text-sm text-[#696965]">
-                        Cleaning rows and calculating your
-                        report…
+                            <h1 className="mt-3 text-2xl font-semibold tracking-[-0.04em] sm:text-3xl">
+                                {progressStage}
+                            </h1>
+
+                            <p className="mt-3 min-h-12 text-sm leading-6 text-[#696965]">
+                                {progressDetail}
+                            </p>
+                        </div>
+
+                        <div className="grid size-14 shrink-0 place-items-center rounded-2xl bg-[#f1f4ff] text-sm font-bold text-[#2457e6]">
+                            {Math.round(
+                                progress,
+                            )}
+                            %
+                        </div>
+                    </div>
+
+                    <div className="mt-7">
+                        <div className="h-3 overflow-hidden rounded-full bg-[#ecece7]">
+                            <div
+                                className="h-full rounded-full bg-[#2457e6] transition-[width] duration-500 ease-out"
+                                style={{
+                                    width: `${Math.min(
+                                        100,
+                                        Math.max(
+                                            0,
+                                            progress,
+                                        ),
+                                    )}%`,
+                                }}
+                            />
+                        </div>
+
+                        <div className="mt-3 flex items-center justify-between text-xs text-[#8a8a85]">
+                        <span>
+                            Actual server progress
+                        </span>
+
+                            <span>
+                            {Math.round(
+                                progress,
+                            )}
+                                % complete
+                        </span>
+                        </div>
+                    </div>
+
+                    <div className="mt-7 grid grid-cols-4 gap-2">
+                        <ProgressStep
+                            label="Prepare"
+                            active={
+                                progress >= 3
+                            }
+                            complete={
+                                progress >= 25
+                            }
+                        />
+
+                        <ProgressStep
+                            label="Clean"
+                            active={
+                                progress >= 25
+                            }
+                            complete={
+                                progress >= 50
+                            }
+                        />
+
+                        <ProgressStep
+                            label="Analyze"
+                            active={
+                                progress >= 50
+                            }
+                            complete={
+                                progress >= 92
+                            }
+                        />
+
+                        <ProgressStep
+                            label="Finish"
+                            active={
+                                progress >= 92
+                            }
+                            complete={
+                                progress >= 100
+                            }
+                        />
+                    </div>
+
+                    <p className="mt-7 text-xs leading-5 text-[#92928d]">
+                        Large spreadsheets may spend most of
+                        their time in row cleaning, product
+                        comparison, and customer segmentation.
+                        Keep this tab open while the report is
+                        generated.
                     </p>
-                </div>
+                </section>
             </main>
         );
     }
@@ -597,6 +919,42 @@ function QualityValue({
             </p>
 
             <p className="mt-1 text-sm text-[#777772]">
+                {label}
+            </p>
+        </div>
+    );
+}
+
+function ProgressStep({
+                          label,
+                          active,
+                          complete,
+                      }: {
+    label: string;
+    active: boolean;
+    complete: boolean;
+}) {
+    return (
+        <div>
+            <div
+                className={[
+                    "h-1.5 rounded-full transition",
+                    complete
+                        ? "bg-[#2457e6]"
+                        : active
+                            ? "animate-pulse bg-[#89a5f5]"
+                            : "bg-[#e6e6e1]",
+                ].join(" ")}
+            />
+
+            <p
+                className={[
+                    "mt-2 text-center text-[10px] font-semibold uppercase tracking-[0.08em]",
+                    active
+                        ? "text-[#2457e6]"
+                        : "text-[#a0a09b]",
+                ].join(" ")}
+            >
                 {label}
             </p>
         </div>
