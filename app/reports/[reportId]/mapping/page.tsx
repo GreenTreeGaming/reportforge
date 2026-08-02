@@ -53,57 +53,6 @@ function normalized(value: string): string {
         .trim();
 }
 
-function guessColumn(
-    columns: string[],
-    keywords: string[],
-): string {
-    return (
-        columns.find((column) => {
-            const candidate = normalized(column);
-
-            return keywords.some((keyword) =>
-                candidate.includes(keyword),
-            );
-        }) ?? ""
-    );
-}
-
-function buildInitialMapping(
-    columns: string[],
-): MappingState {
-    return {
-        date: guessColumn(columns, [
-            "date",
-            "time",
-            "day",
-        ]),
-        customer: guessColumn(columns, [
-            "customer",
-            "client",
-            "account",
-            "buyer",
-        ]),
-        product: guessColumn(columns, [
-            "product",
-            "service",
-            "item",
-            "sku",
-        ]),
-        revenue: guessColumn(columns, [
-            "revenue",
-            "sales",
-            "amount",
-            "total",
-            "price",
-        ]),
-        cost: guessColumn(columns, [
-            "cost",
-            "expense",
-            "cogs",
-        ]),
-    };
-}
-
 export default function MappingPage() {
     const params = useParams<{
         reportId: string;
@@ -170,16 +119,6 @@ export default function MappingPage() {
         }
     }, [reportId]);
 
-    const requiredSelections = useMemo(
-        () => [
-            mapping.date,
-            mapping.customer,
-            mapping.product,
-            mapping.revenue,
-        ],
-        [mapping],
-    );
-
     const requiredTextFields = [
         mapping.date,
         mapping.customer,
@@ -208,8 +147,8 @@ export default function MappingPage() {
         !hasDuplicateRequiredFields &&
         costIsValid;
 
-    function updateField(
-        field: keyof MappingState,
+    function updateTextField(
+        field: "date" | "customer" | "product",
         value: string,
     ): void {
         setMapping((current) => ({
@@ -229,13 +168,7 @@ export default function MappingPage() {
 
         sessionStorage.setItem(
             `reportforge:${reportId}:mapping`,
-            JSON.stringify({
-                date: mapping.date,
-                customer: mapping.customer,
-                product: mapping.product,
-                revenue: mapping.revenue,
-                cost: mapping.cost || null,
-            }),
+            JSON.stringify(mapping),
         );
 
         router.push(
@@ -365,7 +298,7 @@ export default function MappingPage() {
                                 value={mapping.date}
                                 columns={inspection.columns}
                                 onChange={(value) =>
-                                    updateField("date", value)
+                                    updateTextField("date", value)
                                 }
                                 required
                             />
@@ -375,7 +308,7 @@ export default function MappingPage() {
                                 value={mapping.customer}
                                 columns={inspection.columns}
                                 onChange={(value) =>
-                                    updateField("customer", value)
+                                    updateTextField("customer", value)
                                 }
                                 required
                             />
@@ -385,9 +318,35 @@ export default function MappingPage() {
                                 value={mapping.product}
                                 columns={inspection.columns}
                                 onChange={(value) =>
-                                    updateField("product", value)
+                                    updateTextField("product", value)
                                 }
                                 required
+                            />
+
+                            <FieldSelect
+                                label="Order or invoice ID"
+                                value={mapping.orderId ?? ""}
+                                columns={inspection.columns}
+                                onChange={(value) =>
+                                    setMapping((current) => ({
+                                        ...current,
+                                        orderId: value || null,
+                                    }))
+                                }
+                                allowNone
+                            />
+
+                            <FieldSelect
+                                label="Country or region"
+                                value={mapping.region ?? ""}
+                                columns={inspection.columns}
+                                onChange={(value) =>
+                                    setMapping((current) => ({
+                                        ...current,
+                                        region: value || null,
+                                    }))
+                                }
+                                allowNone
                             />
 
                             <NumericMappingField
@@ -573,7 +532,7 @@ function FieldSelect({
             >
                 <option value="">
                     {allowNone
-                        ? "No cost column"
+                        ? `No ${label.toLowerCase()} column`
                         : "Select a column"}
                 </option>
 

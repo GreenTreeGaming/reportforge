@@ -8,6 +8,9 @@ import {
   useRef,
   useState,
 } from "react";
+import {
+  saveReportUpload,
+} from "@/lib/reportforge/upload-storage";
 
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
 const ACCEPTED_EXTENSIONS = [".csv", ".xlsx"];
@@ -153,6 +156,11 @@ export default function HomePage() {
             "The backend did not return a report ID.",
         );
       }
+
+      await saveReportUpload(
+          result.reportId,
+          file,
+      );
 
       sessionStorage.setItem(
           `reportforge:${result.reportId}`,

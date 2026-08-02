@@ -22,8 +22,10 @@ export type NumericFieldMapping =
 
 export type ColumnMapping = {
     date: string;
-    customer: string;
+    customer: string | null;
     product: string;
+    orderId: string | null;
+    region: string | null;
     revenue: NumericFieldMapping;
     cost: NumericFieldMapping;
 };
@@ -51,20 +53,54 @@ export type ApiErrorResponse = {
     message: string;
 };
 
+export type TransactionKind =
+    | "sale"
+    | "return"
+    | "cancellation";
+
 export type CleanSalesRow = {
     sourceRow: number;
-    date: Date;
-    customer: string;
+    date: string;
+    customer: string | null;
     product: string;
+    orderId: string | null;
+    region: string | null;
     revenue: number;
     cost: number | null;
     profit: number | null;
+    transactionKind: TransactionKind;
+    customerAnalysisEligible: boolean;
+    orderAnalysisEligible: boolean;
 };
+
+export type RejectionReason =
+    | "missing_date"
+    | "invalid_date"
+    | "missing_customer"
+    | "missing_product"
+    | "missing_revenue"
+    | "invalid_revenue";
 
 export type RejectedSalesRow = {
     sourceRow: number;
-    reason: string;
+    reason: RejectionReason;
+    message: string;
     original: RawRow;
+};
+
+export type CleaningSummary = {
+    sourceRows: number;
+    acceptedRows: number;
+    rejectedRows: number;
+    salesRows: number;
+    returnRows: number;
+    costCoverage: number;
+};
+
+export type CleaningResult = {
+    rows: CleanSalesRow[];
+    rejectedRows: RejectedSalesRow[];
+    summary: CleaningSummary;
 };
 
 export type SalesMetrics = {
@@ -72,11 +108,20 @@ export type SalesMetrics = {
     totalCost: number | null;
     grossProfit: number | null;
     grossMargin: number | null;
-    transactionCount: number;
-    averageOrderValue: number;
-    medianOrderValue: number;
+
+    lineItemCount: number;
+    orderCount: number | null;
+
+    averageLineValue: number;
+    averageOrderValue: number | null;
+    medianOrderValue: number | null;
+
     uniqueCustomers: number;
     uniqueProducts: number;
+
+    customerCoverage: number;
+    orderIdCoverage: number;
+
     repeatCustomerRate: number;
     topCustomerShare: number;
     topProductShare: number;

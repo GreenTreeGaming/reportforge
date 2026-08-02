@@ -170,7 +170,7 @@ export function guessMapping(
                     "account",
                     "buyer",
                 ],
-            ) ?? "",
+            ) ?? null,
 
         product:
             findColumn(
@@ -185,6 +185,33 @@ export function guessMapping(
                     "stock code",
                 ],
             ) ?? "",
+
+        orderId:
+            findColumn(
+                columns,
+                [
+                    "invoice no",
+                    "invoice number",
+                    "invoice",
+                    "order id",
+                    "order number",
+                    "receipt id",
+                    "transaction id",
+                ],
+            ) ?? null,
+
+        region:
+            findColumn(
+                columns,
+                [
+                    "country",
+                    "region",
+                    "territory",
+                    "state",
+                    "province",
+                    "market",
+                ],
+            ) ?? null,
 
         revenue: guessRevenue(columns),
         cost: guessCost(columns),
