@@ -7,53 +7,6 @@ import type {
     ReportSummaries,
 } from "./types";
 
-export type PeriodSummary = {
-    period: string;
-    revenue: number;
-    salesRevenue: number;
-    returnedRevenue: number;
-    lineItems: number;
-    orders: number;
-    customers: number;
-};
-
-export type ProductSummary = {
-    product: string;
-    revenue: number;
-    salesRevenue: number;
-    returnedRevenue: number;
-    lineItems: number;
-    orders: number;
-    customers: number;
-    returnRate: number;
-};
-
-export type CustomerSummary = {
-    customer: string;
-    revenue: number;
-    orders: number;
-    lineItems: number;
-    products: number;
-    firstPurchase: string;
-    lastPurchase: string;
-    averageOrderValue: number;
-};
-
-export type RegionSummary = {
-    region: string;
-    revenue: number;
-    orders: number;
-    customers: number;
-    lineItems: number;
-};
-
-export type ReportSummaries = {
-    monthly: PeriodSummary[];
-    products: ProductSummary[];
-    customers: CustomerSummary[];
-    regions: RegionSummary[];
-};
-
 function addToMap(
     map: Map<string, number>,
     key: string,

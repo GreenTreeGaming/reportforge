@@ -1,7 +1,3 @@
-import type {
-    ReportSummaries,
-} from "./summaries";
-
 export type RawRow = Record<string, unknown>;
 
 export type DirectNumericMapping = {
