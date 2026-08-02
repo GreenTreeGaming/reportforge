@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
     useParams,
+    useRouter,
 } from "next/navigation";
 import {
     useEffect,
@@ -177,6 +178,8 @@ export default function ReviewPage() {
             cancelled = true;
         };
     }, [reportId]);
+
+    const router = useRouter();
 
     if (error) {
         return (
@@ -383,14 +386,19 @@ export default function ReviewPage() {
                     </div>
                 </section>
 
-                <div className="mt-8 flex justify-end">
-                    <button
-                        type="button"
-                        className="rounded-xl bg-[#191918] px-5 py-3 text-sm font-semibold text-white"
-                    >
-                        Build complete report
-                    </button>
-                </div>
+                <button
+                    type="button"
+                    onClick={() =>
+                        router.push(
+                            `/reports/${encodeURIComponent(
+                                reportId,
+                            )}/overview`,
+                        )
+                    }
+                    className="rounded-xl bg-[#191918] px-5 py-3 text-sm font-semibold text-white transition hover:bg-black"
+                >
+                    Build complete report
+                </button>
             </main>
         </div>
     );
