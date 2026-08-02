@@ -14,8 +14,15 @@ const ACCEPTED_EXTENSIONS = [".csv", ".xlsx"];
 
 type UploadState = "idle" | "selected" | "uploading" | "error";
 
-type AnalyzeResponse = {
+type InspectResponse = {
   reportId?: string;
+  filename?: string;
+  sheetName?: string | null;
+  rowCount?: number;
+  columnCount?: number;
+  columns?: string[];
+  preview?: Record<string, unknown>[];
+  warnings?: string[];
   message?: string;
 };
 
@@ -126,13 +133,13 @@ export default function HomePage() {
       const body = new FormData();
       body.append("file", file);
 
-      const response = await fetch("/api/analyze", {
+      const response = await fetch("/api/inspect", {
         method: "POST",
         body,
       });
 
       const result =
-          (await response.json()) as AnalyzeResponse;
+          (await response.json()) as InspectResponse;
 
       if (!response.ok) {
         throw new Error(
@@ -147,8 +154,24 @@ export default function HomePage() {
         );
       }
 
+      sessionStorage.setItem(
+          `reportforge:${result.reportId}`,
+          JSON.stringify({
+            reportId: result.reportId,
+            filename: result.filename,
+            sheetName: result.sheetName,
+            rowCount: result.rowCount,
+            columnCount: result.columnCount,
+            columns: result.columns,
+            preview: result.preview,
+            warnings: result.warnings,
+          }),
+      );
+
       window.location.assign(
-          `/reports/${encodeURIComponent(result.reportId)}`,
+          `/reports/${encodeURIComponent(
+              result.reportId,
+          )}/mapping`,
       );
     } catch (caughtError) {
       setUploadState("error");
@@ -207,11 +230,6 @@ export default function HomePage() {
         <main>
           <section className="mx-auto grid max-w-7xl gap-14 px-5 pb-18 pt-16 sm:px-8 sm:pt-22 lg:grid-cols-[minmax(0,1fr)_minmax(420px,0.82fr)] lg:items-center lg:px-10 lg:pb-24 lg:pt-28">
             <div className="max-w-2xl">
-              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs font-semibold text-[#686864] shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
-                <span className="size-1.5 rounded-full bg-[#2457e6]" />
-                Clear answers from business spreadsheets
-              </div>
-
               <h1 className="max-w-3xl text-[clamp(2.7rem,6vw,5.4rem)] font-semibold leading-[0.98] tracking-[-0.065em]">
                 Know what changed.
                 <span className="block text-[#777772]">
@@ -361,7 +379,7 @@ export default function HomePage() {
                 {uploadState === "uploading" ? (
                     <>
                       <SpinnerIcon className="size-4 animate-spin" />
-                      Preparing your report
+                      Reading your spreadsheet
                     </>
                 ) : (
                     <>
@@ -372,8 +390,8 @@ export default function HomePage() {
               </button>
 
               <p className="mt-3 text-center text-xs leading-5 text-[#92928d]">
-                Your file is sent securely to the ReportForge
-                analytics service.
+                Your spreadsheet is processed by the secure
+                server-side ReportForge application.
               </p>
             </form>
           </section>
