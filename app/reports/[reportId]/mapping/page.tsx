@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import {
+    saveReportMapping,
+} from "@/lib/reportforge/upload-storage";
+import {
     useParams,
     useRouter,
 } from "next/navigation";
@@ -168,20 +171,36 @@ export default function MappingPage() {
         }));
     }
 
-    function handleSubmit(
+    async function handleSubmit(
         event: FormEvent<HTMLFormElement>,
-    ): void {
+    ): Promise<void> {
         event.preventDefault();
 
-        if (!inspection || !canContinue) {
+        if (
+            !inspection ||
+            !canContinue
+        ) {
             return;
         }
 
-        router.push(
-            `/reports/${encodeURIComponent(
+        try {
+            setError(null);
+
+            await saveReportMapping(
                 reportId,
-            )}/review`,
-        );
+                mapping,
+            );
+
+            router.push(
+                `/reports/${encodeURIComponent(
+                    reportId,
+                )}/review`,
+            );
+        } catch {
+            setError(
+                "The column mapping could not be saved. Try again.",
+            );
+        }
     }
 
     if (error) {

@@ -6,12 +6,18 @@ import {
 
 import type {
     AnalysisResult,
+    ColumnMapping,
 } from "./types";
 
 const uploadKey = (
     reportId: string,
 ): string =>
     `reportforge-upload:${reportId}`;
+
+const mappingKey = (
+    reportId: string,
+): string =>
+    `reportforge-mapping:${reportId}`;
 
 const analysisKey = (
     reportId: string,
@@ -31,9 +37,10 @@ export async function saveReportUpload(
 export async function getReportUpload(
     reportId: string,
 ): Promise<File | null> {
-    const stored = await get<unknown>(
-        uploadKey(reportId),
-    );
+    const stored =
+        await get<unknown>(
+            uploadKey(reportId),
+        );
 
     return stored instanceof File
         ? stored
@@ -45,6 +52,42 @@ export async function deleteReportUpload(
 ): Promise<void> {
     await del(
         uploadKey(reportId),
+    );
+}
+
+export async function saveReportMapping(
+    reportId: string,
+    mapping: ColumnMapping,
+): Promise<void> {
+    await set(
+        mappingKey(reportId),
+        mapping,
+    );
+}
+
+export async function getReportMapping(
+    reportId: string,
+): Promise<ColumnMapping | null> {
+    const stored =
+        await get<ColumnMapping>(
+            mappingKey(reportId),
+        );
+
+    if (
+        !stored ||
+        typeof stored !== "object"
+    ) {
+        return null;
+    }
+
+    return stored;
+}
+
+export async function deleteReportMapping(
+    reportId: string,
+): Promise<void> {
+    await del(
+        mappingKey(reportId),
     );
 }
 
@@ -89,6 +132,7 @@ export async function deleteReportData(
 ): Promise<void> {
     await Promise.all([
         deleteReportUpload(reportId),
+        deleteReportMapping(reportId),
         deleteReportAnalysis(reportId),
     ]);
 }

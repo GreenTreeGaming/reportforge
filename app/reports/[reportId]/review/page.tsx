@@ -7,12 +7,12 @@ import {
 } from "next/navigation";
 import {
     useEffect,
-    useRef,
     useState,
 } from "react";
 
 import {
     getReportAnalysis,
+    getReportMapping,
     getReportUpload,
     saveReportAnalysis,
 } from "@/lib/reportforge/upload-storage";
@@ -85,9 +85,6 @@ export default function ReviewPage() {
     const router = useRouter();
     const reportId = params.reportId;
 
-    const analysisStarted =
-        useRef(false);
-
     const [progress, setProgress] =
         useState(0);
 
@@ -108,12 +105,6 @@ export default function ReviewPage() {
         useState<string | null>(null);
 
     useEffect(() => {
-        if (analysisStarted.current) {
-            return;
-        }
-
-        analysisStarted.current = true;
-
         let cancelled = false;
 
         async function analyze(): Promise<void> {
@@ -169,21 +160,28 @@ export default function ReviewPage() {
                     );
                 }
 
-                const rawMapping =
-                    sessionStorage.getItem(
-                        `reportforge:${reportId}:mapping`,
-                    );
-
-                if (!rawMapping) {
-                    throw new Error(
-                        "The column mapping could not be found.",
-                    );
-                }
+                setProgress(5);
+                setProgressStage(
+                    "Loading field mapping",
+                );
+                setProgressDetail(
+                    "Loading the selected spreadsheet columns.",
+                );
 
                 const mapping =
-                    JSON.parse(
-                        rawMapping,
-                    ) as ColumnMapping;
+                    await getReportMapping(
+                        reportId,
+                    );
+
+                if (cancelled) {
+                    return;
+                }
+
+                if (!mapping) {
+                    throw new Error(
+                        "The column mapping could not be found. Return to the mapping page and confirm the fields again.",
+                    );
+                }
 
                 const body =
                     new FormData();
