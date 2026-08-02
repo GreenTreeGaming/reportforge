@@ -344,7 +344,10 @@ export function cleanSalesRows(
                         ? "return"
                         : "sale";
 
-            if (transactionKind === "return") {
+            if (
+                transactionKind === "return" ||
+                transactionKind === "cancellation"
+            ) {
                 returnRows += 1;
             } else {
                 salesRows += 1;

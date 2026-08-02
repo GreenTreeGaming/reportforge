@@ -13,6 +13,9 @@ import type {
     ApiErrorResponse,
     ColumnMapping,
 } from "@/lib/reportforge/types";
+import {
+    buildReportSummaries,
+} from "@/lib/reportforge/summaries";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -115,9 +118,15 @@ export async function POST(
                 cleaning.rows,
             );
 
+        const summaries =
+            buildReportSummaries(
+                cleaning.rows,
+            );
+
         return NextResponse.json({
             metrics,
             cleaning: cleaning.summary,
+            summaries,
             rejectedRows:
                 cleaning.rejectedRows.slice(
                     0,

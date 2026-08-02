@@ -8,7 +8,6 @@ import {
 import {
     FormEvent,
     useEffect,
-    useMemo,
     useState,
 } from "react";
 import type {
@@ -35,8 +34,10 @@ type MappingState = ColumnMapping;
 
 const EMPTY_MAPPING: MappingState = {
     date: "",
-    customer: "",
+    customer: null,
     product: "",
+    orderId: null,
+    region: null,
     revenue: {
         mode: "none",
     },
@@ -121,7 +122,6 @@ export default function MappingPage() {
 
     const requiredTextFields = [
         mapping.date,
-        mapping.customer,
         mapping.product,
     ];
 
@@ -132,9 +132,20 @@ export default function MappingPage() {
             true,
         );
 
-    const hasDuplicateRequiredFields =
-        new Set(requiredTextFields).size !==
-        requiredTextFields.length;
+    const selectedTextColumns = [
+        mapping.date,
+        mapping.product,
+        mapping.customer,
+        mapping.orderId,
+        mapping.region,
+    ].filter(
+        (value): value is string =>
+            Boolean(value),
+    );
+
+    const hasDuplicateTextFields =
+        new Set(selectedTextColumns).size !==
+        selectedTextColumns.length;
 
     const costIsValid =
         isNumericMappingComplete(
@@ -144,7 +155,7 @@ export default function MappingPage() {
 
     const canContinue =
         hasAllRequiredFields &&
-        !hasDuplicateRequiredFields &&
+        !hasDuplicateTextFields &&
         costIsValid;
 
     function updateTextField(
@@ -288,8 +299,8 @@ export default function MappingPage() {
                         </h2>
 
                         <p className="mt-2 text-sm leading-6 text-[#777772]">
-                            The first four fields are required. Cost is
-                            optional.
+                            Date, product, and revenue are required. Customer, order ID,
+                            region, and cost are optional but unlock additional analysis.
                         </p>
 
                         <div className="mt-6 space-y-5">
@@ -305,12 +316,15 @@ export default function MappingPage() {
 
                             <FieldSelect
                                 label="Customer"
-                                value={mapping.customer}
+                                value={mapping.customer ?? ""}
                                 columns={inspection.columns}
                                 onChange={(value) =>
-                                    updateTextField("customer", value)
+                                    setMapping((current) => ({
+                                        ...current,
+                                        customer: value || null,
+                                    }))
                                 }
-                                required
+                                allowNone
                             />
 
                             <FieldSelect
@@ -416,10 +430,9 @@ export default function MappingPage() {
                             />
                         </div>
 
-                        {hasDuplicateRequiredFields ? (
+                        {hasDuplicateTextFields ? (
                             <p className="mt-5 rounded-xl border border-[#efc8c3] bg-[#fff4f2] px-4 py-3 text-sm text-[#a42a20]">
-                                Date, customer, product, and revenue must use
-                                different columns.
+                                Each mapped business field must use a different column.
                             </p>
                         ) : null}
 
