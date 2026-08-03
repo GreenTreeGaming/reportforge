@@ -1,0 +1,1 @@
+export function Sparkline({values}:{values:number[]}){if(values.length<2)return null;const W=110,H=32,min=Math.min(...values),max=Math.max(...values),r=max-min||1;const d=values.map((v,i)=>`${i?"L":"M"}${i/(values.length-1)*W} ${H-(v-min)/r*H}`).join(" ");return <svg viewBox={`0 0 ${W} ${H}`} className="spark"><path d={d}/></svg>}

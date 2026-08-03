@@ -288,13 +288,22 @@ export default function ReportOverviewPage() {
                         </span>
                     </Link>
 
-                    <button
-                        type="button"
-                        onClick={() => router.back()}
-                        className="rounded-lg border border-black/10 bg-white px-3 py-2 text-sm font-medium"
-                    >
-                        Back to review
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <Link
+                            href={`/reports/${reportId}/professional`}
+                            className="rounded-lg bg-[#2457e6] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#1948c7]"
+                        >
+                            Generate professional report
+                        </Link>
+
+                        <button
+                            type="button"
+                            onClick={() => router.back()}
+                            className="rounded-lg border border-black/10 bg-white px-3 py-2 text-sm font-medium"
+                        >
+                            Back to review
+                        </button>
+                    </div>
                 </div>
             </header>
 
