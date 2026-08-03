@@ -185,6 +185,23 @@ function createStats():
     };
 }
 
+function calculateReturnRate(
+    returnedRevenue: number,
+    salesRevenue: number,
+): number | null {
+    if (
+        salesRevenue <= 0 ||
+        returnedRevenue <= 0
+    ) {
+        return null;
+    }
+
+    return (
+        returnedRevenue /
+        salesRevenue
+    );
+}
+
 function aggregateProducts(
     rows: CleanSalesRow[],
 ): Map<
@@ -373,13 +390,10 @@ export function calculateProductMomentum(
                         );
 
                 const currentReturnRate =
-                    currentStats
-                        .salesRevenue === 0
-                        ? 0
-                        : currentStats
-                            .returnedRevenue /
-                        currentStats
-                            .salesRevenue;
+                    calculateReturnRate(
+                        currentStats.returnedRevenue,
+                        currentStats.salesRevenue,
+                    );
 
                 return {
                     product,
@@ -416,9 +430,11 @@ export function calculateProductMomentum(
                     previousStats.customers
                         .size,
 
+                    currentSalesRevenue:
+                    currentStats.salesRevenue,
+
                     currentReturnedRevenue:
-                    currentStats
-                        .returnedRevenue,
+                    currentStats.returnedRevenue,
 
                     currentReturnRate,
 

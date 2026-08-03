@@ -153,16 +153,42 @@ export default function ReportOverviewPage() {
                 return null;
             }
 
-            return result.summaries.products
-                .filter(
-                    (product) =>
-                        product.salesRevenue > 0 &&
-                        product.returnedRevenue > 0,
-                )
+            return result.advanced
+                .productMomentum
+                .products
+                .filter((product) => {
+                    return (
+                        product.currentSalesRevenue >=
+                        500 &&
+                        product.currentOrders >= 5 &&
+                        product.currentReturnedRevenue >=
+                        100 &&
+                        product.currentReturnRate !==
+                        null &&
+                        product.currentReturnRate >=
+                        0.1
+                    );
+                })
                 .sort(
-                    (left, right) =>
-                        right.returnRate -
-                        left.returnRate,
+                    (left, right) => {
+                        const impactDifference =
+                            right.currentReturnedRevenue -
+                            left.currentReturnedRevenue;
+
+                        if (
+                            impactDifference !==
+                            0
+                        ) {
+                            return impactDifference;
+                        }
+
+                        return (
+                            (right.currentReturnRate ??
+                                0) -
+                            (left.currentReturnRate ??
+                                0)
+                        );
+                    },
                 )[0] ?? null;
         }, [result]);
 
@@ -515,16 +541,64 @@ export default function ReportOverviewPage() {
                         </h2>
 
                         <p className="mt-2 text-sm leading-6 text-[#785810]">
-                            This product has the highest detected
-                            return ratio among products with both
-                            positive sales and returned revenue:
-                            {" "}
-                            {percent(
-                                highestReturnProduct.returnRate,
-                            )}.
+                            This product generated{" "}
+                            {money(
+                                highestReturnProduct
+                                    .currentReturnedRevenue,
+                            )}{" "}
+                            in returned revenue during the
+                            current comparison period.
+                        </p>
+
+                        <div className="mt-5 grid gap-4 sm:grid-cols-3">
+                            <ReturnMetric
+                                label="Positive sales"
+                                value={money(
+                                    highestReturnProduct
+                                        .currentSalesRevenue,
+                                )}
+                            />
+
+                            <ReturnMetric
+                                label="Returned revenue"
+                                value={money(
+                                    highestReturnProduct
+                                        .currentReturnedRevenue,
+                                )}
+                            />
+
+                            <ReturnMetric
+                                label="Return rate"
+                                value={
+                                    highestReturnProduct
+                                        .currentReturnRate ===
+                                    null
+                                        ? "Not available"
+                                        : percent(
+                                            highestReturnProduct
+                                                .currentReturnRate,
+                                        )
+                                }
+                            />
+                        </div>
+                    </section>
+                ) : (
+                    <section className="mt-8 rounded-2xl border border-black/10 bg-white p-6">
+                        <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#777772]">
+                            Returns watch
+                        </p>
+
+                        <h2 className="mt-2 text-xl font-semibold">
+                            No high-impact return issue detected
+                        </h2>
+
+                        <p className="mt-2 text-sm leading-6 text-[#696965]">
+                            No product met the minimum thresholds
+                            for positive sales, order volume,
+                            returned revenue, and return rate.
                         </p>
                     </section>
-                ) : null}
+                )}
 
                 <section className="mt-8 grid gap-6 lg:grid-cols-2">
                     <ReportCard
@@ -904,5 +978,25 @@ function RankingTable({
                 ))}
             </div>
         </article>
+    );
+}
+
+function ReturnMetric({
+                          label,
+                          value,
+                      }: {
+    label: string;
+    value: string;
+}) {
+    return (
+        <div className="rounded-xl border border-[#ead9a8] bg-white/60 p-4">
+            <p className="text-xs text-[#785810]">
+                {label}
+            </p>
+
+            <p className="mt-2 text-lg font-semibold text-[#191918]">
+                {value}
+            </p>
+        </div>
     );
 }

@@ -244,64 +244,113 @@ export function buildDecisionQueue({
         });
     }
 
-    const highestReturnProduct =
-        [...productMomentum.products]
-            .filter(
-                (product) =>
-                    product.currentRevenue >
-                    0 &&
-                    product.currentReturnedRevenue >
-                    0,
-            )
+    const returnAlertCandidates =
+        productMomentum.products
+            .filter((product) => {
+                const qualifiesForReturnAlert =
+                    product.currentSalesRevenue >=
+                    500 &&
+                    product.currentOrders >= 5 &&
+                    product.currentReturnedRevenue >=
+                    100 &&
+                    product.currentReturnRate !==
+                    null &&
+                    product.currentReturnRate >=
+                    0.1;
+
+                return qualifiesForReturnAlert;
+            })
             .sort(
-                (left, right) =>
-                    right.currentReturnRate -
-                    left.currentReturnRate,
-            )[0];
+                (left, right) => {
+                    /*
+                     * Prioritize financial impact first,
+                     * then return rate.
+                     */
+                    const impactDifference =
+                        right.currentReturnedRevenue -
+                        left.currentReturnedRevenue;
+
+                    if (
+                        impactDifference !== 0
+                    ) {
+                        return impactDifference;
+                    }
+
+                    return (
+                        (right.currentReturnRate ??
+                            0) -
+                        (left.currentReturnRate ??
+                            0)
+                    );
+                },
+            );
+
+    const highestReturnProduct =
+        returnAlertCandidates[0];
 
     if (
         highestReturnProduct &&
-        highestReturnProduct
-            .currentReturnRate >= 0.1
+        highestReturnProduct.currentReturnRate !==
+        null
     ) {
+        const returnRate =
+            highestReturnProduct.currentReturnRate;
+
+        const returnedRevenue =
+            highestReturnProduct
+                .currentReturnedRevenue;
+
+        const priority:
+            DecisionAction["priority"] =
+            returnedRevenue >= 10_000 ||
+            (
+                returnRate >= 0.25 &&
+                returnedRevenue >= 2_500
+            )
+                ? "critical"
+                : returnedRevenue >= 1_000 ||
+                returnRate >= 0.2
+                    ? "high"
+                    : "medium";
+
         actions.push({
             id: "product-return-problem",
-            priority:
-                highestReturnProduct
-                    .currentReturnRate >=
-                0.25
-                    ? "critical"
-                    : "high",
-
+            priority,
             category: "returns",
 
             title:
-                "Address a product return problem",
+                "Review a high-impact product return issue",
 
             summary:
-                `${highestReturnProduct.product} has a detected return rate of ` +
+                `${highestReturnProduct.product} has ` +
+                `${money(
+                    returnedRevenue,
+                )} in returned revenue, representing ` +
                 `${percent(
-                    highestReturnProduct.currentReturnRate,
-                )}.`,
+                    returnRate,
+                )} of positive sales in the current comparison window.`,
 
             recommendation:
-                "Audit product quality, listing accuracy, packaging, fulfillment, and customer complaints for this product.",
+                "Review product quality, description accuracy, packaging, fulfillment, and customer feedback. Prioritize fixes based on the financial impact of the returns.",
 
             evidence: [
+                `Positive sales: ${money(
+                    highestReturnProduct.currentSalesRevenue,
+                )}`,
+
                 `Returned revenue: ${money(
-                    highestReturnProduct.currentReturnedRevenue,
+                    returnedRevenue,
                 )}`,
-                `Current revenue: ${money(
-                    highestReturnProduct.currentRevenue,
-                )}`,
+
+                `Orders: ${highestReturnProduct.currentOrders.toLocaleString()}`,
+
                 `Return rate: ${percent(
-                    highestReturnProduct.currentReturnRate,
+                    returnRate,
                 )}`,
             ],
 
             estimatedImpact:
-            highestReturnProduct
-                .currentReturnedRevenue,
+            returnedRevenue,
         });
     }
 

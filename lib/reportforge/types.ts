@@ -146,7 +146,7 @@ export type ProductSummary = {
     lineItems: number;
     orders: number;
     customers: number;
-    returnRate: number;
+    returnRate: number | null;
 };
 
 export type CustomerSummary = {
@@ -222,8 +222,9 @@ export type ProductMomentum = {
     currentCustomers: number;
     previousCustomers: number;
 
+    currentSalesRevenue: number;
     currentReturnedRevenue: number;
-    currentReturnRate: number;
+    currentReturnRate: number | null;
 
     shareOfCurrentRevenue: number;
 };

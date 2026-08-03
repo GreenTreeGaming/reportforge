@@ -151,8 +151,9 @@ export function buildProductSummary(
             orders: group.orders.size,
             customers: group.customers.size,
             returnRate:
-                group.salesRevenue === 0
-                    ? 0
+                group.salesRevenue <= 0 ||
+                group.returnedRevenue <= 0
+                    ? null
                     : group.returnedRevenue /
                     group.salesRevenue,
         }))

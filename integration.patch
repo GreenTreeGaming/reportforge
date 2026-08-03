@@ -1,0 +1,202 @@
+diff --git a/lib/reportforge/types.ts b/lib/reportforge/types.ts
+--- a/lib/reportforge/types.ts
++++ b/lib/reportforge/types.ts
+@@
+ export type DecisionAction = {
+@@
+     estimatedImpact: number | null;
+ };
++
++export type KpiComparison = {
++    current: number;
++    previous: number;
++    absoluteChange: number;
++    changeRate: number | null;
++};
++
++export type PeriodPerformance = {
++    revenue: number;
++    orders: number;
++    averageOrderValue: number;
++    activeCustomers: number;
++    customerAttributedRevenue: number;
++    customerAttributedOrders: number;
++    ordersPerCustomer: number;
++    customerAverageOrderValue: number;
++};
++
++export type RevenueBridgeStep = {
++    id: string;
++    label: string;
++    kind: "total" | "increase" | "decrease";
++    value: number;
++};
++
++export type RevenueDriver = {
++    id: "customers" | "frequency" | "aov" | "unattributed";
++    label: string;
++    contribution: number;
++    previousValue: number;
++    currentValue: number;
++    valueChangeRate: number | null;
++};
++
++export type PerformanceAnalytics = {
++    window: ComparisonWindow | null;
++    current: PeriodPerformance | null;
++    previous: PeriodPerformance | null;
++    kpis: {
++        revenue: KpiComparison;
++        orders: KpiComparison;
++        averageOrderValue: KpiComparison;
++        activeCustomers: KpiComparison;
++    } | null;
++    revenueBridge: RevenueBridgeStep[];
++    revenueDrivers: RevenueDriver[];
++    customerCoverage: number;
++};
+ 
+ export type AdvancedAnalytics = {
+     productMomentum: ProductMomentumResult;
+     customerMovement: CustomerMovementResult;
+     rfm: RfmResult;
+     decisions: DecisionAction[];
++    performance: PerformanceAnalytics;
+ };
+diff --git a/app/api/analyze/route.ts b/app/api/analyze/route.ts
+--- a/app/api/analyze/route.ts
++++ b/app/api/analyze/route.ts
+@@
+ import {
+     calculateMetrics,
+ } from "@/lib/reportforge/metrics";
++
++import {
++    calculatePerformanceAnalytics,
++} from "@/lib/reportforge/performance";
+@@
+                     const customerMovement =
+                         calculateCustomerMovement(
+                             cleaning.rows,
+                         );
++
++                    const performance =
++                        calculatePerformanceAnalytics(
++                            cleaning.rows,
++                            customerMovement,
++                        );
+@@
+                         advanced: {
++                            performance,
++
+                             productMomentum:
+                             compactProductMomentum,
+diff --git a/app/reports/[reportId]/overview/page.tsx b/app/reports/[reportId]/overview/page.tsx
+--- a/app/reports/[reportId]/overview/page.tsx
++++ b/app/reports/[reportId]/overview/page.tsx
+@@
+ import type {
+     AnalysisResult,
++    KpiComparison,
+ } from "@/lib/reportforge/types";
+ import {
+     getReportAnalysis,
+ } from "@/lib/reportforge/upload-storage";
++import {
++    KpiChange,
++    RevenueIntelligence,
++} from "./RevenueIntelligence";
+@@
+     const {
++        performance,
+         productMomentum,
+         customerMovement,
+         rfm,
+         decisions,
+     } = advanced;
+@@
+                 <section className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                     <MetricCard
+                         label="Net revenue"
+-                        value={money(
+-                            metrics.totalRevenue,
+-                        )}
++                        value={money(
++                            performance.current?.revenue ??
++                            metrics.totalRevenue,
++                        )}
++                        comparison={
++                            performance.kpis?.revenue
++                        }
+                     />
+ 
+                     <MetricCard
+                         label="Orders"
+                         value={
+-                            metrics.orderCount?.toLocaleString() ??
++                            performance.current?.orders.toLocaleString() ??
++                            metrics.orderCount?.toLocaleString() ??
+                             "Not available"
+                         }
++                        comparison={
++                            performance.kpis?.orders
++                        }
++                        comparisonFormat="number"
+                     />
+ 
+                     <MetricCard
+                         label="Average order"
+                         value={money(
+-                            metrics.averageOrderValue,
++                            performance.current?.averageOrderValue ??
++                            metrics.averageOrderValue,
+                         )}
++                        comparison={
++                            performance.kpis?.averageOrderValue
++                        }
+                     />
+ 
+                     <MetricCard
+-                        label="Known customers"
+-                        value={metrics.uniqueCustomers.toLocaleString()}
++                        label="Active customers"
++                        value={
++                            performance.current?.activeCustomers.toLocaleString() ??
++                            metrics.uniqueCustomers.toLocaleString()
++                        }
++                        comparison={
++                            performance.kpis?.activeCustomers
++                        }
++                        comparisonFormat="number"
+                     />
+                 </section>
++
++                <RevenueIntelligence
++                    performance={performance}
++                />
+@@
+ function MetricCard({
+                         label,
+                         value,
++                        comparison,
++                        comparisonFormat = "money",
+                     }: {
+     label: string;
+     value: string;
++    comparison?: KpiComparison;
++    comparisonFormat?: "money" | "number";
+ }) {
+@@
+             <p className="mt-3 text-2xl font-semibold tracking-[-0.04em]">
+                 {value}
+             </p>
++
++            {comparison ? (
++                <KpiChange
++                    comparison={comparison}
++                    format={comparisonFormat}
++                />
++            ) : null}
+         </article>
+     );
+ }
