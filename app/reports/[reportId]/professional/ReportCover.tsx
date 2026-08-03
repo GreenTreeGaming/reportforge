@@ -1,1 +1,98 @@
-import{dateLabel,money,signedPct}from"@/lib/reportforge/professional-report/formatters";import type{ReportModel}from"@/lib/reportforge/professional-report/types";export function ReportCover({model:m}:{model:ReportModel}){return <section className="report-page cover"><div className="cover-shape"/><header><span className="brand"><b>RF</b>ReportForge</span><span>Confidential</span></header><main><div className="cover-copy">{m.metadata.logoDataUrl&&<img src={m.metadata.logoDataUrl} alt={`${m.metadata.businessName} logo`}/>}<p className="eyebrow">{m.metadata.reportingLabel}</p><h1>{m.metadata.reportTitle}</h1><h2>{m.metadata.businessName}</h2>{m.metadata.currentPeriod&&<p>{m.metadata.currentPeriod}</p>}</div><div className="cover-stats"><article><span>Net revenue</span><strong>{m.kpis[0].value}</strong></article><article><span>Period change</span><strong>{m.kpis[0].change??"Not available"}</strong></article><article><span>Confidence</span><strong>{m.quality.score}/100</strong></article></div></main><footer><span>{m.metadata.preparedFor?`Prepared for ${m.metadata.preparedFor}`:""}</span><span>Generated {dateLabel(m.metadata.generatedAt)}</span></footer></section>}
+import { dateLabel } from "@/lib/reportforge/professional-report/formatters";
+import type { ReportModel } from "@/lib/reportforge/professional-report/types";
+
+export function ReportCover({
+                                model,
+                            }: {
+    model: ReportModel;
+}) {
+    const revenue = model.kpis.find(
+        (kpi) => kpi.id === "revenue",
+    );
+
+    return (
+        <section className="report-page report-cover">
+            <div className="report-cover-shape" />
+
+            <header className="report-cover-header">
+                <span className="report-brand">
+                    <b>RF</b>
+                    ReportForge
+                </span>
+                <span>Confidential</span>
+            </header>
+
+            <main className="report-cover-main">
+                <div className="report-cover-copy">
+                    {model.metadata.logoDataUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                            src={
+                                model.metadata.logoDataUrl
+                            }
+                            alt={`${model.metadata.businessName} logo`}
+                        />
+                    ) : null}
+
+                    <p className="report-eyebrow">
+                        {model.metadata.reportingLabel}
+                    </p>
+
+                    <h1>
+                        {model.metadata.reportTitle}
+                    </h1>
+
+                    <h2>
+                        {model.metadata.businessName}
+                    </h2>
+
+                    {model.metadata.currentPeriod ? (
+                        <p className="report-cover-period">
+                            {model.metadata.currentPeriod}
+                        </p>
+                    ) : null}
+                </div>
+
+                <div className="report-cover-stats">
+                    <article>
+                        <span>Net revenue</span>
+                        <strong>
+                            {revenue?.value ??
+                                "Not available"}
+                        </strong>
+                    </article>
+
+                    <article>
+                        <span>Period change</span>
+                        <strong>
+                            {revenue?.change ??
+                                "Not available"}
+                        </strong>
+                    </article>
+
+                    <article>
+                        <span>Confidence</span>
+                        <strong>
+                            {model.quality.score}/100
+                        </strong>
+                    </article>
+                </div>
+            </main>
+
+            <footer className="report-cover-footer">
+                <span>
+                    {model.metadata.preparedFor
+                        ? `Prepared for ${model.metadata.preparedFor}`
+                        : ""}
+                </span>
+
+                <span>
+                    Generated{" "}
+                    {dateLabel(
+                        model.metadata.generatedAt,
+                    )}
+                </span>
+            </footer>
+        </section>
+    );
+}

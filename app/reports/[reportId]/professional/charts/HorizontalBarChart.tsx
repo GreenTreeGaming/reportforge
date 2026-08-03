@@ -1,1 +1,58 @@
-import{compactMoney}from"@/lib/reportforge/professional-report/formatters";import type{Ranking}from"@/lib/reportforge/professional-report/types";export function HorizontalBarChart({items,limit=8}:{items:Ranking[];limit?:number}){const rows=items.slice(0,limit),max=Math.max(1,...rows.map(x=>Math.abs(x.value)));if(!rows.length)return <div className="empty">No qualifying values.</div>;return <div className="bars">{rows.map(x=><div key={x.id} className="bar-row"><div><strong>{x.label}</strong><b>{compactMoney(x.value)}</b></div><span><i style={{width:`${Math.max(2,Math.abs(x.value)/max*100)}%`}}/></span><small>{x.meta}</small></div>)}</div>}
+import type { Ranking } from "@/lib/reportforge/professional-report/types";
+
+export function HorizontalBarChart({
+                                       items,
+                                       limit = 8,
+                                   }: {
+    items: Ranking[];
+    limit?: number;
+}) {
+    const visible = items.slice(0, limit);
+
+    if (!visible.length) {
+        return (
+            <div className="report-empty-chart">
+                No qualifying records were available.
+            </div>
+        );
+    }
+
+    const maximum = Math.max(
+        1,
+        ...visible.map((item) =>
+            Math.abs(item.value),
+        ),
+    );
+
+    return (
+        <div className="report-bars">
+            {visible.map((item) => (
+                <article key={item.id}>
+                    <header>
+                        <span>{item.label}</span>
+                        <strong>
+                            {item.formattedValue}
+                        </strong>
+                    </header>
+
+                    <i>
+                        <span
+                            style={{
+                                width: `${Math.max(
+                                    3,
+                                    (Math.abs(
+                                            item.value,
+                                        ) /
+                                        maximum) *
+                                    100,
+                                )}%`,
+                            }}
+                        />
+                    </i>
+
+                    <small>{item.detail}</small>
+                </article>
+            ))}
+        </div>
+    );
+}

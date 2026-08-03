@@ -1,1 +1,112 @@
-import{money,pct}from"@/lib/reportforge/professional-report/formatters";import type{ReportModel}from"@/lib/reportforge/professional-report/types";import{ReportPage}from"./ProfessionalReport";import{DonutChart}from"./charts/DonutChart";import{SegmentChart}from"./charts/SegmentChart";import{HorizontalBarChart}from"./charts/HorizontalBarChart";export function CustomerIntelligencePage({model:m,page}:{model:ReportModel;page:number}){return <ReportPage number={page} title="Customer intelligence"><div className="heading compact"><p className="eyebrow">Customer intelligence</p><h1>Retention, movement, and customer quality</h1><p>Customer analysis uses only rows with a usable customer identifier.</p></div><div className="columns"><section className="card"><h2>Revenue movement</h2><DonutChart items={m.customer.movement} center={pct(m.customer.repeatRate)}/></section><section className="card"><h2>Movement values</h2><div className="list">{m.customer.movement.map(x=><div key={x.label}><span>{x.label}</span><b>{money(x.value)}</b></div>)}</div></section></div><section className="card"><h2>RFM customer segments</h2><SegmentChart items={m.customer.segments}/></section><section className="card"><h2>Largest identified customer losses</h2><HorizontalBarChart items={m.customer.losses}/></section></ReportPage>}
+import { money, pct } from "@/lib/reportforge/professional-report/formatters";
+import type { ReportModel } from "@/lib/reportforge/professional-report/types";
+import { ReportPage } from "./ProfessionalReport";
+import { HorizontalBarChart } from "./charts/HorizontalBarChart";
+import { SegmentChart } from "./charts/SegmentChart";
+
+export function CustomerIntelligencePage({
+                                             model,
+                                             page,
+                                         }: {
+    model: ReportModel;
+    page: number;
+}) {
+    return (
+        <ReportPage
+            number={page}
+            title="Customer intelligence"
+        >
+            <div className="report-heading is-compact">
+                <p className="report-eyebrow">
+                    Customer intelligence
+                </p>
+                <h1>
+                    Retention, expansion, and customer
+                    value
+                </h1>
+                <p>
+                    Customer movement is derived from
+                    matching adjacent periods and should
+                    be interpreted alongside customer-ID
+                    coverage.
+                </p>
+            </div>
+
+            <div className="report-strip">
+                <article>
+                    <span>Repeat customer rate</span>
+                    <strong>
+                        {pct(model.customer.repeatRate)}
+                    </strong>
+                </article>
+                <article>
+                    <span>Customer coverage</span>
+                    <strong>
+                        {pct(model.customer.coverage)}
+                    </strong>
+                </article>
+                <article>
+                    <span>Largest customer share</span>
+                    <strong>
+                        {pct(model.customer.topShare)}
+                    </strong>
+                </article>
+            </div>
+
+            <section className="report-card">
+                <h2>Customer revenue movement</h2>
+
+                <div className="report-movement">
+                    {model.customer.movement.map(
+                        (item) => (
+                            <article
+                                key={item.id}
+                                className={`is-${item.tone}`}
+                            >
+                                <span>{item.label}</span>
+                                <strong>
+                                    {money(item.amount)}
+                                </strong>
+                                <small>
+                                    {item.count.toLocaleString()}{" "}
+                                    customers
+                                </small>
+                            </article>
+                        ),
+                    )}
+                </div>
+            </section>
+
+            <div className="report-columns">
+                <section className="report-card">
+                    <h2>RFM segments</h2>
+                    <SegmentChart
+                        segments={
+                            model.customer.segments
+                        }
+                    />
+                </section>
+
+                <section className="report-card">
+                    <h2>
+                        Largest customer losses
+                    </h2>
+                    <HorizontalBarChart
+                        items={model.customer.losses}
+                        limit={7}
+                    />
+                </section>
+            </div>
+
+            <section className="report-card">
+                <h2>Highest-value customers</h2>
+                <HorizontalBarChart
+                    items={
+                        model.customer.topCustomers
+                    }
+                    limit={8}
+                />
+            </section>
+        </ReportPage>
+    );
+}

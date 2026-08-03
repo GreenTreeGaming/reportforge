@@ -6,10 +6,7 @@ type MoneyOptions = {
 function isValidNumber(
     value: number | null | undefined,
 ): value is number {
-    return (
-        typeof value === "number" &&
-        Number.isFinite(value)
-    );
+    return typeof value === "number" && Number.isFinite(value);
 }
 
 export function money(
@@ -20,32 +17,21 @@ export function money(
         return "Not available";
     }
 
-    return new Intl.NumberFormat(
-        "en-US",
-        {
-            style: "currency",
-            currency: "USD",
-            notation:
-                options.compact
-                    ? "compact"
-                    : "standard",
-            maximumFractionDigits:
-                options.maximumFractionDigits ??
-                0,
-        },
-    ).format(value);
+    return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        notation: options.compact ? "compact" : "standard",
+        maximumFractionDigits: options.maximumFractionDigits ?? 0,
+    }).format(value);
 }
 
 export function compactMoney(
     value: number | null | undefined,
 ): string {
-    return money(
-        value,
-        {
-            compact: true,
-            maximumFractionDigits: 1,
-        },
-    );
+    return money(value, {
+        compact: true,
+        maximumFractionDigits: 1,
+    });
 }
 
 export function number(
@@ -56,12 +42,9 @@ export function number(
         return "Not available";
     }
 
-    return new Intl.NumberFormat(
-        "en-US",
-        {
-            maximumFractionDigits,
-        },
-    ).format(value);
+    return new Intl.NumberFormat("en-US", {
+        maximumFractionDigits,
+    }).format(value);
 }
 
 export function pct(
@@ -72,13 +55,10 @@ export function pct(
         return "Not available";
     }
 
-    return new Intl.NumberFormat(
-        "en-US",
-        {
-            style: "percent",
-            maximumFractionDigits,
-        },
-    ).format(value);
+    return new Intl.NumberFormat("en-US", {
+        style: "percent",
+        maximumFractionDigits,
+    }).format(value);
 }
 
 export function signedMoney(
@@ -88,19 +68,10 @@ export function signedMoney(
         return "Not available";
     }
 
-    const formatted =
-        money(
-            Math.abs(value),
-        );
+    const formatted = money(Math.abs(value));
 
-    if (value > 0) {
-        return `+${formatted}`;
-    }
-
-    if (value < 0) {
-        return `−${formatted}`;
-    }
-
+    if (value > 0) return `+${formatted}`;
+    if (value < 0) return `−${formatted}`;
     return formatted;
 }
 
@@ -112,127 +83,66 @@ export function signedPct(
         return "Not available";
     }
 
-    const formatted =
-        pct(
-            Math.abs(value),
-            maximumFractionDigits,
-        );
+    const formatted = pct(Math.abs(value), maximumFractionDigits);
 
-    if (value > 0) {
-        return `+${formatted}`;
-    }
-
-    if (value < 0) {
-        return `−${formatted}`;
-    }
-
+    if (value > 0) return `+${formatted}`;
+    if (value < 0) return `−${formatted}`;
     return formatted;
 }
 
-export function date(
+export function dateLabel(
     value: string | null | undefined,
 ): string {
     if (!value) {
         return "Not available";
     }
 
-    const parsed =
-        new Date(value);
+    const parsed = new Date(value);
 
-    if (
-        !Number.isFinite(
-            parsed.getTime(),
-        )
-    ) {
+    if (!Number.isFinite(parsed.getTime())) {
         return "Not available";
     }
 
-    return new Intl.DateTimeFormat(
-        "en-US",
-        {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-        },
-    ).format(parsed);
+    return new Intl.DateTimeFormat("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+    }).format(parsed);
 }
 
-export function month(
-    period: string,
-): string {
-    const [
-        year,
-        monthNumber,
-    ] =
-        period
-            .split("-")
-            .map(Number);
+export function monthLabel(period: string): string {
+    const [year, month] = period.split("-").map(Number);
 
     if (
         !Number.isInteger(year) ||
-        !Number.isInteger(monthNumber) ||
-        monthNumber < 1 ||
-        monthNumber > 12
+        !Number.isInteger(month) ||
+        month < 1 ||
+        month > 12
     ) {
         return period;
     }
 
-    return new Intl.DateTimeFormat(
-        "en-US",
-        {
-            month: "short",
-            year: "numeric",
-            timeZone: "UTC",
-        },
-    ).format(
-        new Date(
-            Date.UTC(
-                year,
-                monthNumber - 1,
-                1,
-            ),
-        ),
-    );
+    return new Intl.DateTimeFormat("en-US", {
+        month: "short",
+        year: "numeric",
+        timeZone: "UTC",
+    }).format(new Date(Date.UTC(year, month - 1, 1)));
 }
-
-/*
- * Compatibility exports for files using the longer formatter names.
- */
-
-export const formatMoney =
-    money;
-
-export const formatNumber =
-    number;
-
-export const formatPercent =
-    pct;
-
-export const formatSignedMoney =
-    signedMoney;
-
-export const formatSignedPercent =
-    signedPct;
-
-export const formatDate =
-    date;
-
-export const formatMonth =
-    month;
-
-export const dateLabel =
-    date;
 
 export function clamp(
     value: number,
     minimum: number,
     maximum: number,
 ): number {
-    return Math.min(
-        maximum,
-        Math.max(
-            minimum,
-            value,
-        ),
-    );
+    return Math.min(maximum, Math.max(minimum, value));
 }
+
+export const formatMoney = money;
+export const formatNumber = number;
+export const formatPercent = pct;
+export const formatSignedMoney = signedMoney;
+export const formatSignedPercent = signedPct;
+export const formatDate = dateLabel;
+export const formatMonth = monthLabel;
+export const date = dateLabel;
+export const month = monthLabel;

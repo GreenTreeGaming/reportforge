@@ -6,28 +6,31 @@ import {
 } from "./formatters";
 
 export function buildExecutiveHeadline(
-    current: number,
-    rate: number | null,
+    currentRevenue: number,
+    changeRate: number | null,
 ): string {
-    if (rate === null) {
-        return (
-            `The business generated ` +
-            `${money(current)} in analyzed net revenue.`
-        );
+    if (changeRate === null) {
+        return `The business generated ${money(
+            currentRevenue,
+        )} in analyzed net revenue.`;
+    }
+
+    if (Math.abs(changeRate) < 0.005) {
+        return `Net revenue remained broadly stable at ${money(
+            currentRevenue,
+        )}.`;
     }
 
     return (
-        `Net revenue ` +
-        `${rate >= 0 ? "grew" : "declined"} ` +
-        `${pct(Math.abs(rate))} to ` +
-        `${money(current)}.`
+        `Net revenue ${changeRate > 0 ? "grew" : "declined"} ` +
+        `${pct(Math.abs(changeRate))} to ${money(currentRevenue)}.`
     );
 }
 
 export function buildExecutiveNarrative(
-    current: number,
+    currentRevenue: number,
     change: number | null,
-    rate: number | null,
+    changeRate: number | null,
     driver?: {
         label: string;
         impact: number;
@@ -36,31 +39,18 @@ export function buildExecutiveNarrative(
 ): string {
     const performance =
         change === null
-            ? (
-                `The analyzed data produced ` +
-                `${money(current)} in net revenue.`
-            )
-            : (
-                `Revenue changed by ` +
-                `${signedMoney(change)} ` +
-                `(${signedPct(rate)}) to ` +
-                `${money(current)}.`
-            );
+            ? `The analyzed data produced ${money(
+                currentRevenue,
+            )} in net revenue.`
+            : `Revenue changed by ${signedMoney(change)} ` +
+            `(${signedPct(changeRate)}) to ${money(currentRevenue)}.`;
 
-    const driverSummary =
-        driver
-            ? (
-                `${driver.label} was the largest ` +
-                `measured driver at ` +
-                `${signedMoney(driver.impact)}.`
-            )
-            : "";
+    const driverSummary = driver
+        ? `${driver.label} was the largest measured driver at ` +
+        `${signedMoney(driver.impact)}.`
+        : "";
 
-    return [
-        performance,
-        driverSummary,
-        risk ?? "",
-    ]
+    return [performance, driverSummary, risk ?? ""]
         .filter(Boolean)
         .join(" ");
 }

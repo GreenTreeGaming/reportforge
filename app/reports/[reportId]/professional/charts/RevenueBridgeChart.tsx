@@ -1,1 +1,62 @@
-import{signedMoney,compactMoney}from"@/lib/reportforge/professional-report/formatters";import type{ReportModel}from"@/lib/reportforge/professional-report/types";export function RevenueBridgeChart({items}:{items:ReportModel["bridge"]}){if(!items.length)return <div className="empty">A complete revenue bridge is unavailable.</div>;const max=Math.max(1,...items.map(x=>Math.abs(x.value)));return <div className="bridge">{items.map(x=><article key={x.id} className={x.kind}><strong>{x.kind==="start"||x.kind==="end"?compactMoney(x.value):signedMoney(x.value)}</strong><div><span style={{height:`${Math.max(8,Math.abs(x.value)/max*100)}%`}}/></div><small>{x.label}</small></article>)}</div>}
+import {
+    compactMoney,
+    signedMoney,
+} from "@/lib/reportforge/professional-report/formatters";
+import type { ReportBridgeItem } from "@/lib/reportforge/professional-report/types";
+
+export function RevenueBridgeChart({
+                                       items,
+                                   }: {
+    items: ReportBridgeItem[];
+}) {
+    if (items.length < 2) {
+        return (
+            <div className="report-empty-chart">
+                Not enough comparable history to
+                render a bridge.
+            </div>
+        );
+    }
+
+    const maximum = Math.max(
+        1,
+        ...items.map((item) =>
+            Math.abs(item.value),
+        ),
+    );
+
+    return (
+        <div className="report-bridge">
+            {items.map((item) => (
+                <article
+                    key={item.id}
+                    className={`is-${item.kind}`}
+                >
+                    <strong>
+                        {item.kind === "start" ||
+                        item.kind === "end"
+                            ? compactMoney(item.value)
+                            : signedMoney(item.value)}
+                    </strong>
+
+                    <div>
+                        <span
+                            style={{
+                                height: `${Math.max(
+                                    12,
+                                    (Math.abs(
+                                            item.value,
+                                        ) /
+                                        maximum) *
+                                    100,
+                                )}%`,
+                            }}
+                        />
+                    </div>
+
+                    <small>{item.label}</small>
+                </article>
+            ))}
+        </div>
+    );
+}

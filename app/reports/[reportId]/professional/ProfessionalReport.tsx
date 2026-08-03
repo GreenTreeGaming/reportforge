@@ -1,3 +1,121 @@
-"use client";import type{CSSProperties,ReactNode}from"react";import type{ReportModel}from"@/lib/reportforge/professional-report/types";import{ReportCover}from"./ReportCover";import{ExecutiveSummaryPage}from"./ExecutiveSummaryPage";import{RevenuePerformancePage}from"./RevenuePerformancePage";import{CustomerIntelligencePage}from"./CustomerIntelligencePage";import{ProductPerformancePage}from"./ProductPerformancePage";import{RegionalPerformancePage}from"./RegionalPerformancePage";import{ActionPlanPage}from"./ActionPlanPage";import{MethodologyPage}from"./MethodologyPage";
-export function ReportPage({number,title,children}:{number:number;title:string;children:ReactNode}){return <section className="report-page"><header><span className="brand"><b>RF</b>ReportForge</span><span>{title}</span></header><main>{children}</main><footer><span>Confidential business report</span><span>{String(number).padStart(2,"0")}</span></footer></section>}
-export function ProfessionalReport({model}:{model:ReportModel}){const style=({"--accent":model.metadata.accentColor} as CSSProperties);let n=1;return <div className={`professional-report ${model.metadata.pageSize}`} style={style}><ReportCover model={model}/><ExecutiveSummaryPage model={model} page={++n}/><RevenuePerformancePage model={model} page={++n}/>{model.customer.available&&<CustomerIntelligencePage model={model} page={++n}/>}<ProductPerformancePage model={model} page={++n}/>{(model.regions.length>0||model.profit.available)&&<RegionalPerformancePage model={model} page={++n}/>}<ActionPlanPage model={model} page={++n}/>{model.metadata.includeMethodology&&<MethodologyPage model={model} page={++n}/>}</div>}
+"use client";
+
+import type {
+    CSSProperties,
+    ReactNode,
+} from "react";
+
+import type { ReportModel } from "@/lib/reportforge/professional-report/types";
+
+import { ActionPlanPage } from "./ActionPlanPage";
+import { CustomerIntelligencePage } from "./CustomerIntelligencePage";
+import { ExecutiveSummaryPage } from "./ExecutiveSummaryPage";
+import { MethodologyPage } from "./MethodologyPage";
+import { ProductPerformancePage } from "./ProductPerformancePage";
+import { RegionalPerformancePage } from "./RegionalPerformancePage";
+import { ReportCover } from "./ReportCover";
+import { RevenuePerformancePage } from "./RevenuePerformancePage";
+
+export function ReportPage({
+                               number,
+                               title,
+                               children,
+                           }: {
+    number: number;
+    title: string;
+    children: ReactNode;
+}) {
+    return (
+        <section className="report-page">
+            <header className="report-page-header">
+                <span className="report-brand">
+                    <b>RF</b>
+                    ReportForge
+                </span>
+
+                <span>{title}</span>
+            </header>
+
+            <main className="report-page-main">
+                {children}
+            </main>
+
+            <footer className="report-page-footer">
+                <span>
+                    Confidential business report
+                </span>
+                <span>
+                    {String(number).padStart(2, "0")}
+                </span>
+            </footer>
+        </section>
+    );
+}
+
+export function ProfessionalReport({
+                                       model,
+                                   }: {
+    model: ReportModel;
+}) {
+    const style = {
+        "--report-accent":
+        model.metadata.accentColor,
+    } as CSSProperties;
+
+    let page = 1;
+
+    return (
+        <div
+            className={`professional-report paper-${model.metadata.pageSize}`}
+            style={style}
+        >
+            <main className="report-document">
+                <ReportCover model={model} />
+
+                <ExecutiveSummaryPage
+                    model={model}
+                    page={++page}
+                />
+
+                <RevenuePerformancePage
+                    model={model}
+                    page={++page}
+                />
+
+                {model.customer.available ? (
+                    <CustomerIntelligencePage
+                        model={model}
+                        page={++page}
+                    />
+                ) : null}
+
+                {model.products.available ? (
+                    <ProductPerformancePage
+                        model={model}
+                        page={++page}
+                    />
+                ) : null}
+
+                {model.regions.available ||
+                model.profit.available ? (
+                    <RegionalPerformancePage
+                        model={model}
+                        page={++page}
+                    />
+                ) : null}
+
+                <ActionPlanPage
+                    model={model}
+                    page={++page}
+                />
+
+                {model.metadata.includeMethodology ? (
+                    <MethodologyPage
+                        model={model}
+                        page={++page}
+                    />
+                ) : null}
+            </main>
+        </div>
+    );
+}

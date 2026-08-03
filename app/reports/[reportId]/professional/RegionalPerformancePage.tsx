@@ -1,1 +1,116 @@
-import{money,pct}from"@/lib/reportforge/professional-report/formatters";import type{ReportModel}from"@/lib/reportforge/professional-report/types";import{ReportPage}from"./ProfessionalReport";import{HorizontalBarChart}from"./charts/HorizontalBarChart";export function RegionalPerformancePage({model:m,page}:{model:ReportModel;page:number}){return <ReportPage number={page} title="Geography and profitability"><div className="heading compact"><p className="eyebrow">Geography and profitability</p><h1>Where revenue is generated and how much value remains</h1></div>{m.regions.length>0&&<section className="card"><h2>Regional revenue</h2><HorizontalBarChart items={m.regions} limit={10}/></section>}<section className="dark profit"><div><p className="eyebrow">Profitability</p><h2>{m.profit.available?"Measured gross economics":"Coverage limitation"}</h2><p>{m.profit.available?`Gross profit was ${money(m.profit.grossProfit)} at a margin of ${pct(m.profit.grossMargin)}.`:`Complete profitability is unavailable because cost coverage is ${pct(m.profit.costCoverage)}.`}</p></div><div className="list"><div><span>Gross profit</span><b>{money(m.profit.grossProfit)}</b></div><div><span>Gross margin</span><b>{pct(m.profit.grossMargin)}</b></div><div><span>Cost coverage</span><b>{pct(m.profit.costCoverage)}</b></div></div></section></ReportPage>}
+import { money, pct } from "@/lib/reportforge/professional-report/formatters";
+import type { ReportModel } from "@/lib/reportforge/professional-report/types";
+import { ReportPage } from "./ProfessionalReport";
+import { HorizontalBarChart } from "./charts/HorizontalBarChart";
+
+export function RegionalPerformancePage({
+                                            model,
+                                            page,
+                                        }: {
+    model: ReportModel;
+    page: number;
+}) {
+    return (
+        <ReportPage
+            number={page}
+            title="Geography and profitability"
+        >
+            <div className="report-heading is-compact">
+                <p className="report-eyebrow">
+                    Geography and profitability
+                </p>
+                <h1>
+                    Where revenue is generated and retained
+                </h1>
+                <p>
+                    Regional results depend on the mapped
+                    geography field. Profitability requires
+                    usable cost coverage.
+                </p>
+            </div>
+
+            <div className="report-strip">
+                <article>
+                    <span>Gross profit</span>
+                    <strong>
+                        {money(
+                            model.profit.grossProfit,
+                        )}
+                    </strong>
+                </article>
+                <article>
+                    <span>Gross margin</span>
+                    <strong>
+                        {pct(
+                            model.profit.grossMargin,
+                        )}
+                    </strong>
+                </article>
+                <article>
+                    <span>Cost coverage</span>
+                    <strong>
+                        {pct(
+                            model.profit.costCoverage,
+                        )}
+                    </strong>
+                </article>
+            </div>
+
+            {model.regions.available ? (
+                <section className="report-card">
+                    <h2>Leading regions</h2>
+                    <HorizontalBarChart
+                        items={model.regions.items}
+                        limit={9}
+                    />
+                </section>
+            ) : (
+                <section className="report-card">
+                    <p className="report-empty">
+                        Regional analysis was omitted
+                        because no region field was mapped.
+                    </p>
+                </section>
+            )}
+
+            <section className="report-card">
+                <h2>Profitability interpretation</h2>
+
+                <div className="report-profit-grid">
+                    <article>
+                        <span>Total cost</span>
+                        <strong>
+                            {money(
+                                model.profit.totalCost,
+                            )}
+                        </strong>
+                    </article>
+                    <article>
+                        <span>Gross profit</span>
+                        <strong>
+                            {money(
+                                model.profit.grossProfit,
+                            )}
+                        </strong>
+                    </article>
+                    <article>
+                        <span>Gross margin</span>
+                        <strong>
+                            {pct(
+                                model.profit.grossMargin,
+                            )}
+                        </strong>
+                    </article>
+                </div>
+
+                {!model.profit.available ? (
+                    <p className="report-empty">
+                        Complete profitability analysis
+                        is unavailable because cost data
+                        does not cover every accepted row.
+                    </p>
+                ) : null}
+            </section>
+        </ReportPage>
+    );
+}
