@@ -1,8 +1,238 @@
-export const money=(v:number|null)=>v===null||!Number.isFinite(v)?"Not available":new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(v);
-export const compactMoney=(v:number)=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",notation:"compact",maximumFractionDigits:1}).format(v);
-export const pct=(v:number|null)=>v===null||!Number.isFinite(v)?"Not available":new Intl.NumberFormat("en-US",{style:"percent",maximumFractionDigits:1}).format(v);
-export const signedPct=(v:number|null)=>v===null?"Not available":new Intl.NumberFormat("en-US",{style:"percent",maximumFractionDigits:1,signDisplay:"exceptZero"}).format(v);
-export const signedMoney=(v:number)=>`${v>0?"+":v<0?"−":""}${money(Math.abs(v))}`;
-export const monthLabel=(p:string)=>{const [y,m]=p.split("-").map(Number);return new Intl.DateTimeFormat("en-US",{month:"short",year:"numeric"}).format(new Date(y,m-1,1));};
-export const dateLabel=(v:string)=>new Intl.DateTimeFormat("en-US",{month:"short",day:"numeric",year:"numeric"}).format(new Date(v));
-export const human=(v:string)=>v.replaceAll("_"," ").replace(/\w/g,c=>c.toUpperCase());
+type MoneyOptions = {
+    maximumFractionDigits?: number;
+    compact?: boolean;
+};
+
+function isValidNumber(
+    value: number | null | undefined,
+): value is number {
+    return (
+        typeof value === "number" &&
+        Number.isFinite(value)
+    );
+}
+
+export function money(
+    value: number | null | undefined,
+    options: MoneyOptions = {},
+): string {
+    if (!isValidNumber(value)) {
+        return "Not available";
+    }
+
+    return new Intl.NumberFormat(
+        "en-US",
+        {
+            style: "currency",
+            currency: "USD",
+            notation:
+                options.compact
+                    ? "compact"
+                    : "standard",
+            maximumFractionDigits:
+                options.maximumFractionDigits ??
+                0,
+        },
+    ).format(value);
+}
+
+export function compactMoney(
+    value: number | null | undefined,
+): string {
+    return money(
+        value,
+        {
+            compact: true,
+            maximumFractionDigits: 1,
+        },
+    );
+}
+
+export function number(
+    value: number | null | undefined,
+    maximumFractionDigits = 0,
+): string {
+    if (!isValidNumber(value)) {
+        return "Not available";
+    }
+
+    return new Intl.NumberFormat(
+        "en-US",
+        {
+            maximumFractionDigits,
+        },
+    ).format(value);
+}
+
+export function pct(
+    value: number | null | undefined,
+    maximumFractionDigits = 1,
+): string {
+    if (!isValidNumber(value)) {
+        return "Not available";
+    }
+
+    return new Intl.NumberFormat(
+        "en-US",
+        {
+            style: "percent",
+            maximumFractionDigits,
+        },
+    ).format(value);
+}
+
+export function signedMoney(
+    value: number | null | undefined,
+): string {
+    if (!isValidNumber(value)) {
+        return "Not available";
+    }
+
+    const formatted =
+        money(
+            Math.abs(value),
+        );
+
+    if (value > 0) {
+        return `+${formatted}`;
+    }
+
+    if (value < 0) {
+        return `−${formatted}`;
+    }
+
+    return formatted;
+}
+
+export function signedPct(
+    value: number | null | undefined,
+    maximumFractionDigits = 1,
+): string {
+    if (!isValidNumber(value)) {
+        return "Not available";
+    }
+
+    const formatted =
+        pct(
+            Math.abs(value),
+            maximumFractionDigits,
+        );
+
+    if (value > 0) {
+        return `+${formatted}`;
+    }
+
+    if (value < 0) {
+        return `−${formatted}`;
+    }
+
+    return formatted;
+}
+
+export function date(
+    value: string | null | undefined,
+): string {
+    if (!value) {
+        return "Not available";
+    }
+
+    const parsed =
+        new Date(value);
+
+    if (
+        !Number.isFinite(
+            parsed.getTime(),
+        )
+    ) {
+        return "Not available";
+    }
+
+    return new Intl.DateTimeFormat(
+        "en-US",
+        {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+        },
+    ).format(parsed);
+}
+
+export function month(
+    period: string,
+): string {
+    const [
+        year,
+        monthNumber,
+    ] =
+        period
+            .split("-")
+            .map(Number);
+
+    if (
+        !Number.isInteger(year) ||
+        !Number.isInteger(monthNumber) ||
+        monthNumber < 1 ||
+        monthNumber > 12
+    ) {
+        return period;
+    }
+
+    return new Intl.DateTimeFormat(
+        "en-US",
+        {
+            month: "short",
+            year: "numeric",
+            timeZone: "UTC",
+        },
+    ).format(
+        new Date(
+            Date.UTC(
+                year,
+                monthNumber - 1,
+                1,
+            ),
+        ),
+    );
+}
+
+/*
+ * Compatibility exports for files using the longer formatter names.
+ */
+
+export const formatMoney =
+    money;
+
+export const formatNumber =
+    number;
+
+export const formatPercent =
+    pct;
+
+export const formatSignedMoney =
+    signedMoney;
+
+export const formatSignedPercent =
+    signedPct;
+
+export const formatDate =
+    date;
+
+export const formatMonth =
+    month;
+
+export const dateLabel =
+    date;
+
+export function clamp(
+    value: number,
+    minimum: number,
+    maximum: number,
+): number {
+    return Math.min(
+        maximum,
+        Math.max(
+            minimum,
+            value,
+        ),
+    );
+}
